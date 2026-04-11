@@ -314,16 +314,40 @@ with st.sidebar:
                 if not is_valid:
                     st.error(message)
                 else:
-                    selected_pair = choose_default_pair(uploaded_df)
-                    currency_column = choose_default_rate_column(uploaded_df)
+                    pair_options = get_currency_pair_options(uploaded_df)
+                    rate_options = get_rate_columns(uploaded_df)
+                    auto_detect = st.toggle(
+                        "Use automatic dataset selection",
+                        value=True,
+                        help="Keep this on to let the app choose a default currency pair and rate column automatically. Turn it off if you want to choose another option yourself.",
+                    )
+
+                    if auto_detect:
+                        selected_pair = choose_default_pair(uploaded_df)
+                        currency_column = choose_default_rate_column(uploaded_df)
+                    else:
+                        if pair_options:
+                            selected_pair = st.selectbox(
+                                "Choose currency pair",
+                                options=pair_options,
+                                index=0,
+                            )
+                        currency_column = st.selectbox(
+                            "Choose rate column",
+                            options=rate_options,
+                            index=0,
+                        )
+
                     try:
                         starting_rate, mu, sigma = derive_parameters_from_history(
                             extract_rate_series(uploaded_df, currency_column, selected_pair)
                         )
                         st.success("Historical parameters calculated successfully.")
                         if selected_pair:
-                            st.write(f"Auto-detected pair: {selected_pair}")
-                        st.write(f"Auto-detected rate column: {currency_column}")
+                            label = "Auto-detected pair" if auto_detect else "Selected pair"
+                            st.write(f"{label}: {selected_pair}")
+                        rate_label = "Auto-detected rate column" if auto_detect else "Selected rate column"
+                        st.write(f"{rate_label}: {currency_column}")
                         st.write(f"Starting rate: {starting_rate:,.2f}")
                         st.write(f"mu: {mu:,.2f}")
                         st.write(f"sigma: {sigma:,.2f}")
