@@ -113,10 +113,58 @@ st.markdown(
 
 
 def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
-    required_columns = {"Date", "USD/RWF", "EUR/RWF"}
-    if not required_columns.issubset(set(dataframe.columns)):
-        return False, "CSV must contain columns: Date, USD/RWF, EUR/RWF."
-    return True, ""
+    if "Date" not in dataframe.columns:
+        return False, "CSV must contain a Date column."
+
+    numeric_columns = [
+        column
+        for column in dataframe.columns
+        if column != "Date" and pd.api.types.is_numeric_dtype(dataframe[column])
+    ]
+    if numeric_columns:
+        return True, ""
+
+    candidate_columns = [column for column in ["Close", "High", "Low", "Open"] if column in dataframe.columns]
+    if candidate_columns:
+        return True, ""
+
+    return False, "CSV must contain a Date column and at least one numeric exchange-rate column."
+
+
+def get_rate_columns(dataframe: pd.DataFrame) -> list[str]:
+    preferred_columns = [column for column in ["Close", "High", "Low", "Open"] if column in dataframe.columns]
+    other_numeric_columns = [
+        column
+        for column in dataframe.columns
+        if column not in {"Date", "currency_pair"} | set(preferred_columns)
+        and pd.api.types.is_numeric_dtype(dataframe[column])
+    ]
+    return preferred_columns + other_numeric_columns
+
+
+def get_currency_pair_options(dataframe: pd.DataFrame) -> list[str]:
+    if "currency_pair" not in dataframe.columns:
+        return []
+    return sorted(dataframe["currency_pair"].dropna().astype(str).unique().tolist())
+
+
+def extract_rate_series(
+    dataframe: pd.DataFrame,
+    rate_column: str,
+    selected_pair: str | None = None,
+) -> pd.Series:
+    working_df = dataframe.copy()
+    working_df["Date"] = pd.to_datetime(working_df["Date"], errors="coerce")
+    working_df = working_df.dropna(subset=["Date"])
+
+    if selected_pair and "currency_pair" in working_df.columns:
+        working_df = working_df[working_df["currency_pair"].astype(str) == selected_pair]
+
+    if working_df.empty:
+        raise ValueError("No valid rows were found for the selected currency pair.")
+
+    working_df = working_df.sort_values("Date")
+    return pd.to_numeric(working_df[rate_column], errors="coerce").dropna()
 
 
 def derive_parameters_from_history(rate_series: pd.Series) -> tuple[float, float, float]:
@@ -203,7 +251,8 @@ with st.sidebar:
         )
 
         uploaded_df = None
-        currency_column = "USD/RWF"
+        currency_column = "Close"
+        selected_pair = None
         starting_rate = DEFAULTS["starting_rate"]
         mu = DEFAULTS["mu"]
         sigma = DEFAULTS["sigma"]
@@ -212,7 +261,7 @@ with st.sidebar:
             uploaded_file = st.file_uploader(
                 "Upload exchange-rate CSV",
                 type=["csv"],
-                help="Expected columns: Date, USD/RWF, EUR/RWF",
+                help="Supported formats: Date + numeric rate columns, or Kaggle-style forex files with currency_pair and Close/High/Low/Open.",
             )
             if uploaded_file is not None:
                 uploaded_df = pd.read_csv(uploaded_file)
@@ -220,13 +269,21 @@ with st.sidebar:
                 if not is_valid:
                     st.error(message)
                 else:
+                    pair_options = get_currency_pair_options(uploaded_df)
+                    if pair_options:
+                        selected_pair = st.selectbox(
+                            "Choose currency pair",
+                            options=pair_options,
+                        )
+
+                    rate_options = get_rate_columns(uploaded_df)
                     currency_column = st.selectbox(
-                        "Choose currency column",
-                        options=["USD/RWF", "EUR/RWF"],
+                        "Choose rate column",
+                        options=rate_options,
                     )
                     try:
                         starting_rate, mu, sigma = derive_parameters_from_history(
-                            uploaded_df[currency_column]
+                            extract_rate_series(uploaded_df, currency_column, selected_pair)
                         )
                         st.success("Historical parameters calculated successfully.")
                         st.write(f"Starting rate: {starting_rate:,.2f}")
@@ -367,6 +424,7 @@ if run_clicked:
                         "summary_df": summary_df,
                         "paths": paths,
                         "currency_column": currency_column,
+                        "selected_pair": selected_pair,
                         "input_mode": input_mode,
                         "starting_rate": starting_rate,
                         "mu": mu,
@@ -395,6 +453,7 @@ if run_clicked:
                     "summary_df": summary_df,
                     "paths": paths,
                     "currency_column": currency_column,
+                    "selected_pair": selected_pair,
                     "input_mode": input_mode,
                     "starting_rate": starting_rate,
                     "mu": mu,
@@ -428,7 +487,8 @@ if "simulation_results" in st.session_state:
     metric_col1, metric_col2, metric_col3 = st.columns(3)
     metric_col1.metric("Input Mode", st.session_state["simulation_results"]["input_mode"])
     metric_col2.metric("Starting Rate", format_rwf(st.session_state["simulation_results"]["starting_rate"]))
-    metric_col3.metric("Simulated Days", int(st.session_state["simulation_results"]["days"]))
+    metric_label = st.session_state["simulation_results"].get("selected_pair") or st.session_state["simulation_results"].get("currency_column")
+    metric_col3.metric("Dataset Selection", metric_label)
 
     chart_col1, chart_col2 = st.columns(2)
 
