@@ -53,96 +53,160 @@ st.markdown(
     <style>
         .stApp {
             background:
-                radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 30%),
-                linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%);
-            color: #15314b;
+                radial-gradient(circle at top right, rgba(249, 115, 22, 0.18), transparent 24%),
+                radial-gradient(circle at bottom left, rgba(37, 99, 235, 0.16), transparent 28%),
+                linear-gradient(180deg, #05070d 0%, #0b1020 52%, #101728 100%);
+            color: #eef2ff;
         }
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #0f2740 0%, #173b5e 100%);
+            background: linear-gradient(180deg, #070b14 0%, #0f1728 100%);
         }
         [data-testid="stSidebar"] * {
-            color: #f7fbff;
+            color: #f8fafc;
+        }
+        .block-container {
+            padding-top: 1.3rem;
+        }
+        h1, h2, h3, h4, p, li, label, span {
+            color: #eef2ff;
         }
         .hero-card {
-            background: linear-gradient(135deg, #0f2740 0%, #1f4f79 100%);
-            border: 1px solid rgba(20, 61, 99, 0.16);
-            border-radius: 20px;
-            padding: 1.5rem 1.75rem;
-            color: #f7fbff;
-            box-shadow: 0 12px 32px rgba(15, 39, 64, 0.12);
+            background:
+                radial-gradient(circle at top right, rgba(249, 115, 22, 0.24), transparent 24%),
+                linear-gradient(135deg, rgba(9, 14, 28, 0.96) 0%, rgba(18, 24, 41, 0.96) 68%, rgba(28, 20, 38, 0.96) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 24px;
+            padding: 1.6rem 1.8rem;
+            color: #f8fafc;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
             margin-bottom: 1rem;
         }
         .hero-card h1 {
             margin: 0 0 0.4rem 0;
-            font-size: 2rem;
+            font-size: 2.15rem;
             font-weight: 700;
         }
         .hero-card p {
             margin: 0;
             line-height: 1.6;
             font-size: 1rem;
+            color: #cbd5e1;
         }
         .recommendation-card {
-            background: linear-gradient(135deg, #ffffff 0%, #eef6ff 100%);
-            border-left: 6px solid #2563eb;
-            border-radius: 18px;
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.96) 0%, rgba(18, 37, 63, 0.96) 100%);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 22px;
             padding: 1.2rem 1.4rem;
-            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.08);
+            box-shadow: 0 14px 32px rgba(2, 6, 23, 0.28);
             margin-bottom: 1rem;
         }
         .metric-caption {
-            color: #51667d;
+            color: #cbd5e1;
             font-size: 0.94rem;
             margin-top: 0.35rem;
         }
         .formula-box {
-            background: rgba(255, 255, 255, 0.82);
-            border: 1px solid rgba(20, 61, 99, 0.12);
-            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid rgba(59, 130, 246, 0.16);
+            border-radius: 18px;
             padding: 1rem 1.2rem;
             margin-top: 1rem;
+            color: #e2e8f0;
         }
         .guide-card {
-            background: rgba(255, 255, 255, 0.86);
-            border: 1px solid rgba(20, 61, 99, 0.12);
-            border-radius: 18px;
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 22px;
             padding: 1rem 1.1rem;
             min-height: 180px;
-            box-shadow: 0 10px 24px rgba(15, 39, 64, 0.06);
+            box-shadow: 0 10px 24px rgba(2, 6, 23, 0.22);
         }
         .guide-card h4 {
             margin: 0 0 0.5rem 0;
-            color: #143d63;
+            color: #f8fafc;
         }
         .guide-card p {
             margin: 0;
-            color: #42586f;
+            color: #cbd5e1;
             line-height: 1.6;
         }
         .auth-shell {
-            background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(238,246,255,0.88));
-            border: 1px solid rgba(20, 61, 99, 0.12);
+            background: linear-gradient(145deg, rgba(8, 12, 22, 0.94), rgba(19, 28, 48, 0.92));
+            border: 1px solid rgba(148, 163, 184, 0.14);
             border-radius: 22px;
             padding: 1.4rem 1.5rem;
-            box-shadow: 0 18px 40px rgba(15, 39, 64, 0.08);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
         }
         .auth-note {
-            background: rgba(37, 99, 235, 0.08);
-            border-left: 4px solid #2563eb;
+            background: rgba(37, 99, 235, 0.12);
+            border-left: 4px solid #f97316;
             border-radius: 12px;
             padding: 0.9rem 1rem;
-            color: #23415f;
+            color: #e2e8f0;
             margin-bottom: 1rem;
         }
+        .accent-panel {
+            background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(59, 130, 246, 0.12));
+            border: 1px solid rgba(249, 115, 22, 0.16);
+            border-radius: 22px;
+            padding: 1rem 1.1rem;
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+        }
+        .market-chip {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 18px;
+            padding: 0.95rem 1rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+        }
+        .market-chip h5 {
+            margin: 0 0 0.3rem 0;
+            color: #f8fafc;
+            font-size: 1rem;
+        }
+        .market-chip p {
+            margin: 0;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        .objective-item {
+            padding: 0.65rem 0.8rem;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.74);
+            border: 1px solid rgba(148, 163, 184, 0.10);
+            margin-bottom: 0.55rem;
+            color: #e2e8f0;
+        }
+        [data-testid="stMetric"] {
+            background: rgba(15, 23, 42, 0.86);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            padding: 1rem;
+            border-radius: 18px;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #94a3b8;
+        }
+        [data-testid="stMetricValue"] {
+            color: #f8fafc;
+        }
+        [data-testid="stDataFrame"], .stTable {
+            background: rgba(15, 23, 42, 0.74);
+            border-radius: 18px;
+        }
         .stButton button, .stDownloadButton button {
-            border-radius: 12px;
+            border-radius: 14px;
             border: 0;
         }
         .stButton button {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
             color: #ffffff;
             font-weight: 700;
             width: 100%;
+            min-height: 3rem;
+        }
+        .stDownloadButton button {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
             min-height: 3rem;
         }
     </style>
@@ -211,6 +275,14 @@ def extract_rate_series(
     rate_column: str,
     selected_pair: str | None = None,
 ) -> pd.Series:
+    return extract_history_frame(dataframe, rate_column, selected_pair)["Rate"]
+
+
+def extract_history_frame(
+    dataframe: pd.DataFrame,
+    rate_column: str,
+    selected_pair: str | None = None,
+) -> pd.DataFrame:
     working_df = dataframe.copy()
     working_df["Date"] = pd.to_datetime(working_df["Date"], errors="coerce")
     working_df = working_df.dropna(subset=["Date"])
@@ -222,7 +294,10 @@ def extract_rate_series(
         raise ValueError("No valid rows were found for the selected currency pair.")
 
     working_df = working_df.sort_values("Date")
-    return pd.to_numeric(working_df[rate_column], errors="coerce").dropna()
+    history_df = working_df[["Date", rate_column]].copy()
+    history_df["Rate"] = pd.to_numeric(history_df[rate_column], errors="coerce")
+    history_df = history_df.dropna(subset=["Rate"])
+    return history_df[["Date", "Rate"]]
 
 
 def derive_parameters_from_history(rate_series: pd.Series) -> tuple[float, float, float]:
@@ -235,6 +310,66 @@ def derive_parameters_from_history(rate_series: pd.Series) -> tuple[float, float
     sigma = float(daily_changes.std(ddof=1)) if daily_changes.size > 1 else 0.0
     starting_rate = float(clean_series.iloc[-1])
     return starting_rate, mu, sigma
+
+
+def build_weekday_market_summary(history_df: pd.DataFrame) -> pd.DataFrame:
+    if history_df.empty:
+        return pd.DataFrame()
+
+    weekday_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
+    summary_df = history_df.copy()
+    summary_df["Weekday"] = summary_df["Date"].dt.day_name()
+    summary_df["Daily Change %"] = summary_df["Rate"].pct_change() * 100
+
+    grouped = (
+        summary_df.groupby("Weekday", observed=False)
+        .agg(
+            Average_Rate=("Rate", "mean"),
+            Average_Change=("Daily Change %", "mean"),
+            Observations=("Rate", "count"),
+        )
+        .reset_index()
+    )
+
+    grouped["Weekday"] = pd.Categorical(grouped["Weekday"], categories=weekday_order, ordered=True)
+    grouped = grouped.sort_values("Weekday").dropna(subset=["Average_Rate"])
+    grouped["Market Mood"] = np.where(
+        grouped["Average_Change"].fillna(0) >= 0,
+        "Usually stronger",
+        "Usually weaker",
+    )
+    return grouped
+
+
+def build_reference_levels(
+    best_strategy_code: str,
+    paths: np.ndarray,
+    starting_rate: float,
+    buy_threshold: float,
+    sell_threshold: float,
+) -> tuple[float, float, str]:
+    future_values = paths[:, 1:].reshape(-1)
+    mean_terminal_rate = float(np.mean(paths[:, -1]))
+
+    if best_strategy_code == "Strategy A":
+        return starting_rate, mean_terminal_rate, "Buy at the current level and hold until the planned exit period."
+    if best_strategy_code == "Strategy B":
+        buy_level = starting_rate * (1 + buy_threshold)
+        sell_level = buy_level * (1 + sell_threshold)
+        return buy_level, sell_level, "Wait for a dip before entering, then lock profit after a rebound."
+
+    buy_level = float(np.percentile(future_values, 45))
+    sell_level = float(np.percentile(future_values, 65))
+    return buy_level, sell_level, "Enter after upward momentum appears and exit once the upward phase begins to fade."
 
 
 def build_strategy_rules_table(simulated_days: int) -> pd.DataFrame:
@@ -618,10 +753,10 @@ with st.sidebar:
 st.markdown(
     """
     <div class="hero-card">
-        <h1>Stochastic Simulation of Currency Exchange Rates for Profit Optimization</h1>
+        <h1>Rwanda Forex Strategy Lab</h1>
         <p>
-            A System Modeling and Simulation project for analyzing USD/RWF and EUR/RWF rate uncertainty
-            with a stochastic random walk model and Monte Carlo simulation.
+            A market-style simulation dashboard for studying USD/RWF and EUR/RWF uncertainty with
+            stochastic random walk modeling, Monte Carlo forecasting, and strategy advice for local forex traders.
         </p>
     </div>
     """,
@@ -637,9 +772,8 @@ col_intro, col_formula = st.columns([1.4, 1])
 with col_intro:
     st.write(
         """
-        Upload historical exchange-rate data, and the system will automatically estimate the model,
-        simulate many possible future price paths, compare three trading strategies, and recommend the
-        most practical buy-and-sell approach.
+        Upload historical exchange-rate data and the app will estimate the model, recreate how the market
+        has behaved, simulate many possible future paths, and turn those results into easy buy-and-sell advice.
         """
     )
 
@@ -652,6 +786,28 @@ with col_formula:
             <strong>Monte Carlo simulation</strong><br>
             1000 or more simulated future paths are generated for comparison.
         </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.subheader("Project Objectives")
+objective_col1, objective_col2 = st.columns(2)
+
+with objective_col1:
+    st.markdown(
+        """
+        <div class="objective-item"><strong>1.</strong> Develop and implement a stochastic random walk model to replicate daily USD/RWF and EUR/RWF fluctuations.</div>
+        <div class="objective-item"><strong>2.</strong> Compare three practical strategies under simulated market conditions: Buy & Hold, Threshold trading, and Trend-following.</div>
+        <div class="objective-item"><strong>3.</strong> Identify the strategy that gives the highest expected profit with the lowest level of risk.</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with objective_col2:
+    st.markdown(
+        """
+        <div class="objective-item"><strong>4.</strong> Estimate useful buy and sell levels that can improve returns while reducing possible losses.</div>
+        <div class="objective-item"><strong>5.</strong> Provide data-driven recommendations that are easy for local forex traders in Rwanda to understand and apply.</div>
         """,
         unsafe_allow_html=True,
     )
@@ -736,10 +892,12 @@ if run_clicked:
                     sell_threshold=sell_threshold_percent / 100,
                     trend_lookback=int(trend_lookback),
                 )
+                history_df = extract_history_frame(uploaded_df, currency_column, selected_pair)
                 store_results(
                     {
                         "summary_df": summary_df,
                         "paths": paths,
+                        "history_df": history_df,
                         "currency_column": currency_column,
                         "selected_pair": selected_pair,
                         "input_mode": input_mode,
@@ -747,6 +905,8 @@ if run_clicked:
                         "mu": mu,
                         "sigma": sigma,
                         "days": days,
+                        "buy_threshold": buy_threshold_percent / 100,
+                        "sell_threshold": sell_threshold_percent / 100,
                     }
                 )
     else:
@@ -769,6 +929,7 @@ if run_clicked:
                 {
                     "summary_df": summary_df,
                     "paths": paths,
+                    "history_df": None,
                     "currency_column": currency_column,
                     "selected_pair": selected_pair,
                     "input_mode": input_mode,
@@ -776,23 +937,35 @@ if run_clicked:
                     "mu": mu,
                     "sigma": sigma,
                     "days": days,
+                    "buy_threshold": buy_threshold_percent / 100,
+                    "sell_threshold": sell_threshold_percent / 100,
                 }
             )
 
 
 if "simulation_results" in st.session_state:
-    summary_df = st.session_state["simulation_results"]["summary_df"].copy()
+    results_payload = st.session_state["simulation_results"]
+    summary_df = results_payload["summary_df"].copy()
     best_strategy = get_best_strategy(summary_df)
     chosen_dataset = (
-        st.session_state["simulation_results"].get("selected_pair")
-        or st.session_state["simulation_results"].get("currency_column")
+        results_payload.get("selected_pair")
+        or results_payload.get("currency_column")
+    )
+    history_df = results_payload.get("history_df")
+    weekday_summary = build_weekday_market_summary(history_df) if isinstance(history_df, pd.DataFrame) else pd.DataFrame()
+    suggested_buy, suggested_sell, level_explanation = build_reference_levels(
+        best_strategy["Strategy"],
+        results_payload["paths"],
+        float(results_payload["starting_rate"]),
+        float(results_payload.get("buy_threshold", DEFAULTS["buy_threshold"])),
+        float(results_payload.get("sell_threshold", DEFAULTS["sell_threshold"])),
     )
 
     st.markdown(
         f"""
         <div class="recommendation-card">
-            <h3 style="margin: 0 0 0.4rem 0; color: #143d63;">Best Strategy Recommendation</h3>
-            <div style="font-size: 1.2rem; font-weight: 700; color: #1d4ed8;">
+            <h3 style="margin: 0 0 0.4rem 0; color: #f8fafc;">Best Strategy Recommendation</h3>
+            <div style="font-size: 1.2rem; font-weight: 700; color: #60a5fa;">
                 {best_strategy["Strategy"]} - {best_strategy["Name"]}
             </div>
             <div class="metric-caption">
@@ -813,15 +986,64 @@ if "simulation_results" in st.session_state:
         """
     )
 
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
-    metric_col1.metric("Input Mode", st.session_state["simulation_results"]["input_mode"])
-    metric_col2.metric("Starting Rate", format_rwf(st.session_state["simulation_results"]["starting_rate"]))
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    metric_col1.metric("Input Mode", results_payload["input_mode"])
+    metric_col2.metric("Starting Rate", format_rwf(results_payload["starting_rate"]))
     metric_col3.metric("Dataset Selection", chosen_dataset)
+    metric_col4.metric("Suggested Buy Level", format_rwf(suggested_buy))
+
+    st.markdown(
+        f"""
+        <div class="accent-panel">
+            <strong>Strategy Advice</strong><br>
+            Suggested sell level: <strong>{format_rwf(suggested_sell)}</strong><br>
+            {level_explanation}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if isinstance(history_df, pd.DataFrame) and not history_df.empty:
+        st.subheader("Historical Market Pulse")
+        st.caption("This section shows how the uploaded market history has behaved before the simulation starts.")
+
+        recent_history = history_df.tail(14).copy()
+        recent_history = recent_history.set_index("Date")
+        pulse_col1, pulse_col2 = st.columns([1.2, 1])
+
+        with pulse_col1:
+            st.caption("Recent price movement from the uploaded history.")
+            st.line_chart(recent_history[["Rate"]])
+
+        with pulse_col2:
+            st.caption("How the market usually behaved on each weekday.")
+            weekday_cols = st.columns(min(5, max(1, len(weekday_summary))))
+            for index, (_, row) in enumerate(weekday_summary.head(5).iterrows()):
+                with weekday_cols[index]:
+                    mood_color = "#22c55e" if row["Average_Change"] >= 0 else "#f97316"
+                    st.markdown(
+                        f"""
+                        <div class="market-chip">
+                            <h5>{row["Weekday"]}</h5>
+                            <p>Avg rate: {row["Average_Rate"]:.3f}</p>
+                            <p style="color:{mood_color};">Avg change: {row["Average_Change"]:.2f}%</p>
+                            <p>{row["Market Mood"]}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+        st.subheader("Weekday Market Summary")
+        st.caption("This table helps explain whether the market tended to be stronger or weaker on Monday, Tuesday, and the other trading days.")
+        display_weekday = weekday_summary.copy()
+        for column in ["Average_Rate", "Average_Change"]:
+            display_weekday[column] = display_weekday[column].map(lambda value: round(float(value), 3))
+        st.dataframe(display_weekday, use_container_width=True, hide_index=True)
 
     st.subheader("How the Buy and Sell Rules Work")
     st.caption("This table explains exactly when each strategy enters and exits the market.")
     st.dataframe(
-        build_strategy_rules_table(int(st.session_state["simulation_results"]["days"])),
+        build_strategy_rules_table(int(results_payload["days"])),
         use_container_width=True,
         hide_index=True,
     )
