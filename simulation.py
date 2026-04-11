@@ -39,6 +39,8 @@ def random_walk_path(
     path = np.empty(days + 1, dtype=float)
     path[0] = float(S0)
 
+    # Each step applies the notebook formula directly:
+    # S(t+1) = S(t) + mu + sigma * Z(t)
     for day in range(days):
         path[day + 1] = path[day] + mu + sigma * shocks[day]
         path[day + 1] = max(path[day + 1], 0.01)
@@ -57,6 +59,8 @@ def monte_carlo_simulation(
     if n_simulations < 1:
         raise ValueError("n_simulations must be at least 1")
 
+    # Monte Carlo means repeating the same stochastic model many times
+    # so we can observe a range of possible future market outcomes.
     random_draws = np.random.normal(0, 1, size=(n_simulations, days))
     paths = [
         random_walk_path(S0=S0, mu=mu, sigma=sigma, days=days, Z_values=draws)
@@ -98,6 +102,7 @@ def strategy_threshold(
     holdings = 0.0
     buy_price = None
 
+    # This strategy waits for a cheaper entry, then exits after a target gain.
     for day in range(1, prices.size):
         current_price = prices[day]
         previous_price = prices[day - 1]
@@ -136,6 +141,8 @@ def strategy_trend_following(
     cash = float(initial_capital)
     holdings = 0.0
 
+    # A simple momentum rule:
+    # buy when recent prices keep rising, sell when they keep falling.
     for day in range(lookback_days, prices.size):
         recent_window = prices[day - lookback_days : day + 1]
         recent_diffs = np.diff(recent_window)

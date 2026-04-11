@@ -29,8 +29,6 @@ DEFAULTS = {
 
 
 DEMO_CREDENTIALS = {
-    "username": "student",
-    "password": "demo123",
     "display_name": "Student Demo",
 }
 
@@ -508,20 +506,12 @@ def render_auth_screen() -> None:
         auth_tabs = st.tabs(["Login", "Sign Up", "About This App"])
 
         with auth_tabs[0]:
-            with st.form("demo_login_form"):
-                username = st.text_input("Username", placeholder="student")
-                password = st.text_input("Password", type="password", placeholder="demo123")
-                login_clicked = st.form_submit_button("Login to Demo")
-
-            st.caption("Sample credentials: `student` / `demo123`")
-
-            if login_clicked:
-                if username == DEMO_CREDENTIALS["username"] and password == DEMO_CREDENTIALS["password"]:
-                    st.session_state["logged_in"] = True
-                    st.session_state["current_user"] = DEMO_CREDENTIALS["display_name"]
-                    st.session_state["auth_notice"] = "Demo login successful."
-                    st.rerun()
-                st.error("Use the sample credentials shown above.")
+            st.write("Click the login button to enter the demo dashboard immediately.")
+            if st.button("Login to Dashboard", use_container_width=True):
+                st.session_state["logged_in"] = True
+                st.session_state["current_user"] = DEMO_CREDENTIALS["display_name"]
+                st.session_state["auth_notice"] = "Demo login successful."
+                st.rerun()
 
         with auth_tabs[1]:
             with st.form("demo_signup_form"):
@@ -964,7 +954,7 @@ if "simulation_results" in st.session_state:
     st.markdown(
         f"""
         <div class="recommendation-card">
-            <h3 style="margin: 0 0 0.4rem 0; color: #f8fafc;">Best Strategy Recommendation</h3>
+            <h3 style="margin: 0 0 0.4rem 0; color: #f8fafc;">📍 Best Strategy Recommendation</h3>
             <div style="font-size: 1.2rem; font-weight: 700; color: #60a5fa;">
                 {best_strategy["Strategy"]} - {best_strategy["Name"]}
             </div>
@@ -995,7 +985,7 @@ if "simulation_results" in st.session_state:
     st.markdown(
         f"""
         <div class="accent-panel">
-            <strong>Strategy Advice</strong><br>
+            <strong>💡 Strategy Advice</strong><br>
             Suggested sell level: <strong>{format_rwf(suggested_sell)}</strong><br>
             {level_explanation}
         </div>
@@ -1004,7 +994,7 @@ if "simulation_results" in st.session_state:
     )
 
     if isinstance(history_df, pd.DataFrame) and not history_df.empty:
-        st.subheader("Historical Market Pulse")
+        st.subheader("📈 Historical Market Pulse")
         st.caption("This section shows how the uploaded market history has behaved before the simulation starts.")
 
         recent_history = history_df.tail(14).copy()
@@ -1033,14 +1023,14 @@ if "simulation_results" in st.session_state:
                         unsafe_allow_html=True,
                     )
 
-        st.subheader("Weekday Market Summary")
+        st.subheader("🗓️ Weekday Market Summary")
         st.caption("This table helps explain whether the market tended to be stronger or weaker on Monday, Tuesday, and the other trading days.")
         display_weekday = weekday_summary.copy()
         for column in ["Average_Rate", "Average_Change"]:
             display_weekday[column] = display_weekday[column].map(lambda value: round(float(value), 3))
         st.dataframe(display_weekday, use_container_width=True, hide_index=True)
 
-    st.subheader("How the Buy and Sell Rules Work")
+    st.subheader("🎯 How the Buy and Sell Rules Work")
     st.caption("This table explains exactly when each strategy enters and exits the market.")
     st.dataframe(
         build_strategy_rules_table(int(results_payload["days"])),
@@ -1068,7 +1058,7 @@ if "simulation_results" in st.session_state:
         )
         st.bar_chart(risk_chart)
 
-    st.subheader("Summary Table")
+    st.subheader("📋 Summary Table")
     st.caption(
         "Average Return shows expected profit per simulation, Risk shows variability, and Total Profit sums all simulated profits."
     )
@@ -1086,7 +1076,7 @@ if "simulation_results" in st.session_state:
     sample_path_df = pd.DataFrame(sample_paths.T)
     sample_path_df.index.name = "Day"
 
-    st.subheader("Sample Exchange Rate Paths")
+    st.subheader("📉 Sample Exchange Rate Paths")
     st.caption(
         "Each line is one possible future path from the Monte Carlo simulation. An upward line means the exchange rate may rise, while a downward line means it may fall."
     )
