@@ -148,6 +148,18 @@ def get_currency_pair_options(dataframe: pd.DataFrame) -> list[str]:
     return sorted(dataframe["currency_pair"].dropna().astype(str).unique().tolist())
 
 
+def choose_default_pair(dataframe: pd.DataFrame) -> str | None:
+    pair_options = get_currency_pair_options(dataframe)
+    return pair_options[0] if pair_options else None
+
+
+def choose_default_rate_column(dataframe: pd.DataFrame) -> str:
+    rate_columns = get_rate_columns(dataframe)
+    if not rate_columns:
+        raise ValueError("No numeric rate column was found in the uploaded file.")
+    return rate_columns[0]
+
+
 def extract_rate_series(
     dataframe: pd.DataFrame,
     rate_column: str,
@@ -177,6 +189,31 @@ def derive_parameters_from_history(rate_series: pd.Series) -> tuple[float, float
     sigma = float(daily_changes.std(ddof=1)) if daily_changes.size > 1 else 0.0
     starting_rate = float(clean_series.iloc[-1])
     return starting_rate, mu, sigma
+
+
+def build_strategy_rules_table(simulated_days: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "Strategy": "A - Buy & Hold",
+                "When to Buy": "Buy immediately at the starting exchange rate.",
+                "When to Sell": f"Sell after {simulated_days} simulated days.",
+                "Simple Meaning": "Best when you expect a steady rise over the whole period.",
+            },
+            {
+                "Strategy": "B - Threshold",
+                "When to Buy": "Buy only after the rate drops by 1% or more.",
+                "When to Sell": "Sell after the bought rate rises by 1.5% or more.",
+                "Simple Meaning": "Best when prices move up and down and you want disciplined entry and exit points.",
+            },
+            {
+                "Strategy": "C - Trend-following",
+                "When to Buy": "Buy after 3 straight days of upward movement.",
+                "When to Sell": "Sell after 3 straight days of downward movement.",
+                "Simple Meaning": "Best when the market shows short-term momentum trends.",
+            },
+        ]
+    )
 
 
 def run_all_strategies(
@@ -239,6 +276,14 @@ def get_best_strategy(summary_df: pd.DataFrame) -> pd.Series:
     return ranked.iloc[0]
 
 
+def explain_best_strategy(best_strategy: pd.Series) -> str:
+    if best_strategy["Strategy"] == "Strategy A":
+        return "This means the model expects a mostly steady increase, so buying once and holding gives the best result."
+    if best_strategy["Strategy"] == "Strategy B":
+        return "This means the model favors waiting for a cheaper buying point and taking profit after a clear rebound."
+    return "This means the model favors following short upward and downward trends instead of trading immediately."
+
+
 with st.sidebar:
     st.markdown("## Simulation Inputs")
     st.caption("Choose either a historical CSV file or manual model parameters.")
@@ -269,23 +314,16 @@ with st.sidebar:
                 if not is_valid:
                     st.error(message)
                 else:
-                    pair_options = get_currency_pair_options(uploaded_df)
-                    if pair_options:
-                        selected_pair = st.selectbox(
-                            "Choose currency pair",
-                            options=pair_options,
-                        )
-
-                    rate_options = get_rate_columns(uploaded_df)
-                    currency_column = st.selectbox(
-                        "Choose rate column",
-                        options=rate_options,
-                    )
+                    selected_pair = choose_default_pair(uploaded_df)
+                    currency_column = choose_default_rate_column(uploaded_df)
                     try:
                         starting_rate, mu, sigma = derive_parameters_from_history(
                             extract_rate_series(uploaded_df, currency_column, selected_pair)
                         )
                         st.success("Historical parameters calculated successfully.")
+                        if selected_pair:
+                            st.write(f"Auto-detected pair: {selected_pair}")
+                        st.write(f"Auto-detected rate column: {currency_column}")
                         st.write(f"Starting rate: {starting_rate:,.2f}")
                         st.write(f"mu: {mu:,.2f}")
                         st.write(f"sigma: {sigma:,.2f}")
@@ -377,8 +415,9 @@ col_intro, col_formula = st.columns([1.4, 1])
 with col_intro:
     st.write(
         """
-        This web application simulates future exchange-rate movements, tests three trading strategies,
-        and compares expected profit against risk so students can identify the best decision rule.
+        Upload historical exchange-rate data, and the system will automatically estimate the model,
+        simulate many possible future price paths, compare three trading strategies, and recommend the
+        most practical buy-and-sell approach.
         """
     )
 
@@ -466,6 +505,10 @@ if run_clicked:
 if "simulation_results" in st.session_state:
     summary_df = st.session_state["simulation_results"]["summary_df"].copy()
     best_strategy = get_best_strategy(summary_df)
+    chosen_dataset = (
+        st.session_state["simulation_results"].get("selected_pair")
+        or st.session_state["simulation_results"].get("currency_column")
+    )
 
     st.markdown(
         f"""
@@ -484,16 +527,32 @@ if "simulation_results" in st.session_state:
         unsafe_allow_html=True,
     )
 
+    st.write(
+        f"""
+        **Simple explanation:** Based on the uploaded history for **{chosen_dataset}**, the model suggests
+        **{best_strategy["Name"]}** as the clearest balance between expected profit and risk.
+        {explain_best_strategy(best_strategy)}
+        """
+    )
+
     metric_col1, metric_col2, metric_col3 = st.columns(3)
     metric_col1.metric("Input Mode", st.session_state["simulation_results"]["input_mode"])
     metric_col2.metric("Starting Rate", format_rwf(st.session_state["simulation_results"]["starting_rate"]))
-    metric_label = st.session_state["simulation_results"].get("selected_pair") or st.session_state["simulation_results"].get("currency_column")
-    metric_col3.metric("Dataset Selection", metric_label)
+    metric_col3.metric("Dataset Selection", chosen_dataset)
+
+    st.subheader("How the Buy and Sell Rules Work")
+    st.caption("This table explains exactly when each strategy enters and exits the market.")
+    st.dataframe(
+        build_strategy_rules_table(int(st.session_state["simulation_results"]["days"])),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     chart_col1, chart_col2 = st.columns(2)
 
     with chart_col1:
         st.subheader("Profit Comparison")
+        st.caption("Higher bars are better because they mean higher expected profit.")
         profit_chart = (
             summary_df.set_index("Name")[["Average Return (RWF)"]]
             .rename(columns={"Average Return (RWF)": "Average Profit"})
@@ -502,6 +561,7 @@ if "simulation_results" in st.session_state:
 
     with chart_col2:
         st.subheader("Risk Comparison")
+        st.caption("Lower bars are better because they mean less uncertainty and lower risk.")
         risk_chart = (
             summary_df.set_index("Name")[["Risk - Std Dev (RWF)"]]
             .rename(columns={"Risk - Std Dev (RWF)": "Risk"})
@@ -509,6 +569,9 @@ if "simulation_results" in st.session_state:
         st.bar_chart(risk_chart)
 
     st.subheader("Summary Table")
+    st.caption(
+        "Average Return shows expected profit per simulation, Risk shows variability, and Total Profit sums all simulated profits."
+    )
     display_df = summary_df.copy()
     for column in [
         "Average Return (RWF)",
@@ -524,6 +587,9 @@ if "simulation_results" in st.session_state:
     sample_path_df.index.name = "Day"
 
     st.subheader("Sample Exchange Rate Paths")
+    st.caption(
+        "Each line is one possible future path from the Monte Carlo simulation. An upward line means the exchange rate may rise, while a downward line means it may fall."
+    )
     st.line_chart(sample_path_df)
 
     st.download_button(
