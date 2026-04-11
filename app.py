@@ -112,6 +112,10 @@ st.markdown(
 )
 
 
+def initialize_state() -> None:
+    st.session_state.setdefault("uploader_reset_key", 0)
+
+
 def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
     if "Date" not in dataframe.columns:
         return False, "CSV must contain a Date column."
@@ -268,6 +272,11 @@ def store_results(payload: dict) -> None:
     st.session_state["simulation_results"] = payload
 
 
+def reset_analysis() -> None:
+    st.session_state.pop("simulation_results", None)
+    st.session_state["uploader_reset_key"] = st.session_state.get("uploader_reset_key", 0) + 1
+
+
 def get_best_strategy(summary_df: pd.DataFrame) -> pd.Series:
     ranked = summary_df.sort_values(
         by=["Risk-Adjusted Score", "Average Return (RWF)"],
@@ -282,6 +291,9 @@ def explain_best_strategy(best_strategy: pd.Series) -> str:
     if best_strategy["Strategy"] == "Strategy B":
         return "This means the model favors waiting for a cheaper buying point and taking profit after a clear rebound."
     return "This means the model favors following short upward and downward trends instead of trading immediately."
+
+
+initialize_state()
 
 
 with st.sidebar:
@@ -306,6 +318,7 @@ with st.sidebar:
             uploaded_file = st.file_uploader(
                 "Upload exchange-rate CSV",
                 type=["csv"],
+                key=f"uploaded_csv_{st.session_state['uploader_reset_key']}",
                 help="Supported formats: Date + numeric rate columns, or Kaggle-style forex files with currency_pair and Close/High/Low/Open.",
             )
             if uploaded_file is not None:
@@ -419,6 +432,13 @@ with st.sidebar:
         )
 
         run_clicked = st.form_submit_button("Run Simulation")
+
+    if "simulation_results" in st.session_state:
+        st.markdown("### Start Again")
+        st.caption("Clear the current file and results, then begin a new prediction.")
+        if st.button("New Analysis", use_container_width=True):
+            reset_analysis()
+            st.rerun()
 
 
 st.markdown(
