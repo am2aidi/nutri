@@ -28,6 +28,13 @@ DEFAULTS = {
 }
 
 
+DEMO_CREDENTIALS = {
+    "username": "student",
+    "password": "demo123",
+    "display_name": "Student Demo",
+}
+
+
 STRATEGY_LABELS = {
     "Strategy A": "Buy & Hold",
     "Strategy B": "Threshold",
@@ -95,6 +102,38 @@ st.markdown(
             padding: 1rem 1.2rem;
             margin-top: 1rem;
         }
+        .guide-card {
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid rgba(20, 61, 99, 0.12);
+            border-radius: 18px;
+            padding: 1rem 1.1rem;
+            min-height: 180px;
+            box-shadow: 0 10px 24px rgba(15, 39, 64, 0.06);
+        }
+        .guide-card h4 {
+            margin: 0 0 0.5rem 0;
+            color: #143d63;
+        }
+        .guide-card p {
+            margin: 0;
+            color: #42586f;
+            line-height: 1.6;
+        }
+        .auth-shell {
+            background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(238,246,255,0.88));
+            border: 1px solid rgba(20, 61, 99, 0.12);
+            border-radius: 22px;
+            padding: 1.4rem 1.5rem;
+            box-shadow: 0 18px 40px rgba(15, 39, 64, 0.08);
+        }
+        .auth-note {
+            background: rgba(37, 99, 235, 0.08);
+            border-left: 4px solid #2563eb;
+            border-radius: 12px;
+            padding: 0.9rem 1rem;
+            color: #23415f;
+            margin-bottom: 1rem;
+        }
         .stButton button, .stDownloadButton button {
             border-radius: 12px;
             border: 0;
@@ -114,6 +153,9 @@ st.markdown(
 
 def initialize_state() -> None:
     st.session_state.setdefault("uploader_reset_key", 0)
+    st.session_state.setdefault("logged_in", False)
+    st.session_state.setdefault("current_user", None)
+    st.session_state.setdefault("auth_notice", "")
 
 
 def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
@@ -277,6 +319,13 @@ def reset_analysis() -> None:
     st.session_state["uploader_reset_key"] = st.session_state.get("uploader_reset_key", 0) + 1
 
 
+def logout_demo_user() -> None:
+    reset_analysis()
+    st.session_state["logged_in"] = False
+    st.session_state["current_user"] = None
+    st.session_state["auth_notice"] = ""
+
+
 def get_best_strategy(summary_df: pd.DataFrame) -> pd.Series:
     ranked = summary_df.sort_values(
         by=["Risk-Adjusted Score", "Average Return (RWF)"],
@@ -293,10 +342,135 @@ def explain_best_strategy(best_strategy: pd.Series) -> str:
     return "This means the model favors following short upward and downward trends instead of trading immediately."
 
 
+def render_auth_screen() -> None:
+    st.markdown(
+        """
+        <div class="hero-card">
+            <h1>Stochastic Simulation of Currency Exchange Rates</h1>
+            <p>
+                Sign in to explore the project, upload currency history, simulate future exchange-rate paths,
+                and present the best trading strategy in a clear classroom-friendly way.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    left_col, right_col = st.columns([1.15, 0.85])
+
+    with left_col:
+        st.markdown(
+            """
+            <div class="auth-shell">
+                <div class="auth-note">
+                    This login and sign-up section is a presentation demo for class use only.
+                    No real accounts are stored and no external authentication service is used.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        auth_tabs = st.tabs(["Login", "Sign Up", "About This App"])
+
+        with auth_tabs[0]:
+            with st.form("demo_login_form"):
+                username = st.text_input("Username", placeholder="student")
+                password = st.text_input("Password", type="password", placeholder="demo123")
+                login_clicked = st.form_submit_button("Login to Demo")
+
+            st.caption("Sample credentials: `student` / `demo123`")
+
+            if login_clicked:
+                if username == DEMO_CREDENTIALS["username"] and password == DEMO_CREDENTIALS["password"]:
+                    st.session_state["logged_in"] = True
+                    st.session_state["current_user"] = DEMO_CREDENTIALS["display_name"]
+                    st.session_state["auth_notice"] = "Demo login successful."
+                    st.rerun()
+                st.error("Use the sample credentials shown above.")
+
+        with auth_tabs[1]:
+            with st.form("demo_signup_form"):
+                full_name = st.text_input("Full name", placeholder="Your name")
+                email = st.text_input("Email", placeholder="student@example.com")
+                new_password = st.text_input("Create password", type="password", placeholder="any password")
+                signup_clicked = st.form_submit_button("Create Demo Account")
+
+            st.caption("This sign-up is only a demo screen for presentation. Nothing is stored online.")
+
+            if signup_clicked:
+                if full_name.strip() and email.strip() and new_password.strip():
+                    st.session_state["logged_in"] = True
+                    st.session_state["current_user"] = full_name.strip()
+                    st.session_state["auth_notice"] = "Demo account created successfully."
+                    st.rerun()
+                st.error("Please fill in all fields to continue.")
+
+        with auth_tabs[2]:
+            st.write(
+                """
+                This app uses historical exchange-rate data to estimate the random-walk model,
+                simulate many possible future paths, compare three trading strategies, and explain
+                which strategy gives the best balance of profit and risk.
+                """
+            )
+            st.write(
+                """
+                It is designed for a System Modeling and Simulation class presentation, so the layout
+                focuses on clear charts, plain-language explanations, and easy reruns with new datasets.
+                """
+            )
+
+    with right_col:
+        st.markdown(
+            """
+            <div class="guide-card">
+                <h4>What Happens After Login</h4>
+                <p>
+                    1. Upload exchange-rate history or enter values manually.<br>
+                    2. The app estimates the model parameters.<br>
+                    3. It simulates future exchange-rate paths.<br>
+                    4. It compares buy and sell strategies and recommends the best one.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="guide-card">
+                <h4>Why This App Is Easy To Follow</h4>
+                <p>
+                    Every section explains what it does, the charts include plain-language captions,
+                    and the results area shows how each strategy buys and sells so viewers do not get confused.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.stop()
+
+
 initialize_state()
+
+if not st.session_state["logged_in"]:
+    render_auth_screen()
 
 
 with st.sidebar:
+    st.markdown("## Demo User")
+    st.caption(f"Signed in as: {st.session_state['current_user']}")
+    if st.button("Logout", use_container_width=True):
+        logout_demo_user()
+        st.rerun()
+
+    st.markdown("### Quick Guide")
+    st.caption("1. Choose upload or manual mode.")
+    st.caption("2. Run the simulation.")
+    st.caption("3. Read the recommendation and charts.")
+    st.caption("4. Click New Analysis to start again.")
+
     st.markdown("## Simulation Inputs")
     st.caption("Choose either a historical CSV file or manual model parameters.")
 
@@ -454,6 +628,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+if st.session_state.get("auth_notice"):
+    st.success(st.session_state["auth_notice"])
+    st.session_state["auth_notice"] = ""
+
 col_intro, col_formula = st.columns([1.4, 1])
 
 with col_intro:
@@ -476,6 +654,62 @@ with col_formula:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+st.subheader("How This App Works")
+guide_col1, guide_col2, guide_col3 = st.columns(3)
+
+with guide_col1:
+    st.markdown(
+        """
+        <div class="guide-card">
+            <h4>Input Area</h4>
+            <p>
+                The sidebar is where the user uploads exchange-rate history or enters values manually.
+                This section prepares the data that will be used for prediction.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with guide_col2:
+    st.markdown(
+        """
+        <div class="guide-card">
+            <h4>Simulation Engine</h4>
+            <p>
+                The app calculates mu and sigma from the uploaded history, then applies the random walk
+                formula to create many future exchange-rate paths with Monte Carlo simulation.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with guide_col3:
+    st.markdown(
+        """
+        <div class="guide-card">
+            <h4>Results Area</h4>
+            <p>
+                The main panel explains which strategy is best, how each strategy buys and sells,
+                and how profit and risk compare in an easy-to-understand format.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with st.expander("Read This Before Running the App"):
+    st.write(
+        """
+        `mu` is the average daily change seen in the historical data.
+        `sigma` measures how much the exchange rate usually moves up and down.
+        The profit chart answers: which strategy earns more?
+        The risk chart answers: which strategy is more stable?
+        The summary table answers: what are the exact numbers behind the recommendation?
+        """
     )
 
 
