@@ -1,3 +1,4 @@
+# Python dependencies for the Flask-based Vercel deployment.
+flask
 numpy
 pandas
-streamlit

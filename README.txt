@@ -1,16 +1,20 @@
+Project overview: This repository contains the Flask web app and simulation logic used for the Vercel deployment.
+
 Stochastic Simulation of Currency Exchange Rates for Profit Optimization
 
 Files
-- app.py: Streamlit web application
+- app.py: Flask web application entrypoint
+- app_logic.py: Shared data preparation and strategy summary helpers
 - simulation.py: Random walk model, trading strategies, and metrics
 - requirements.txt: Python dependencies
+- templates/index.html: Browser interface for the deployed app
 - sample_exchange_rates.csv: Example dataset for testing
 
 How to run locally
 1. Install dependencies:
    pip install -r requirements.txt
 2. Start the application:
-   streamlit run app.py
+   flask --app app run
 
 CSV format
 The upload file must contain these columns:
@@ -30,5 +34,5 @@ What the app does
 
 Recommended sample test
 - Start with the provided sample_exchange_rates.csv file
-- Choose either USD/RWF or EUR/RWF after upload
+- Upload the CSV or enter parameters manually
 - Click "Run Simulation"
