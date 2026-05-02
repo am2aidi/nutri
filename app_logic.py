@@ -35,15 +35,15 @@ DEFAULTS = {
 
 
 STRATEGY_LABELS = {
-    "Strategy A": "Buy & Hold",
-    "Strategy B": "Threshold",
-    "Strategy C": "Trend-following",
+    "Strategy A": "Buy and wait",
+    "Strategy B": "Buy after a drop",
+    "Strategy C": "Follow the trend",
 }
 
 
 def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
     if "Date" not in dataframe.columns:
-        return False, "CSV must contain a Date column."
+        return False, "Your CSV needs a Date column."
 
     numeric_columns = [
         column
@@ -57,7 +57,7 @@ def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
     if candidate_columns:
         return True, ""
 
-    return False, "CSV must contain a Date column and at least one numeric exchange-rate column."
+    return False, "Your CSV needs a Date column and one number column with exchange rates."
 
 
 def get_rate_columns(dataframe: pd.DataFrame) -> list[str]:
@@ -85,7 +85,7 @@ def choose_default_pair(dataframe: pd.DataFrame) -> str | None:
 def choose_default_rate_column(dataframe: pd.DataFrame) -> str:
     rate_columns = get_rate_columns(dataframe)
     if not rate_columns:
-        raise ValueError("No numeric rate column was found in the uploaded file.")
+        raise ValueError("We could not find a number column with exchange rates in the uploaded file.")
     return rate_columns[0]
 
 
@@ -102,7 +102,7 @@ def extract_history_frame(
         working_df = working_df[working_df["currency_pair"].astype(str) == selected_pair]
 
     if working_df.empty:
-        raise ValueError("No valid rows were found for the selected currency pair.")
+        raise ValueError("We could not find valid rows for the currency pair you selected.")
 
     working_df = working_df.sort_values("Date")
     history_df = working_df[["Date", rate_column]].copy()
@@ -114,7 +114,7 @@ def extract_history_frame(
 def derive_parameters_from_history(rate_series: pd.Series) -> tuple[float, float, float]:
     clean_series = pd.to_numeric(rate_series, errors="coerce").dropna()
     if clean_series.size < 2:
-        raise ValueError("Uploaded rate column must have at least two valid rows.")
+        raise ValueError("Please give at least two valid rate values.")
 
     daily_changes = clean_series.diff().dropna()
     mu = float(daily_changes.mean())
@@ -155,8 +155,8 @@ def build_weekday_market_summary(history_df: pd.DataFrame) -> pd.DataFrame:
     grouped = grouped.sort_values("Weekday").dropna(subset=["Average_Rate"])
     grouped["Market Mood"] = np.where(
         grouped["Average_Change"].fillna(0) >= 0,
-        "Usually stronger",
-        "Usually weaker",
+        "Often up",
+        "Often down",
     )
     return grouped
 
@@ -172,37 +172,37 @@ def build_reference_levels(
     mean_terminal_rate = float(np.mean(paths[:, -1]))
 
     if best_strategy_code == "Strategy A":
-        return starting_rate, mean_terminal_rate, "Buy at the current level and hold until the planned exit period."
+        return starting_rate, mean_terminal_rate, "Buy now and wait until the end of the test."
     if best_strategy_code == "Strategy B":
         buy_level = starting_rate * (1 + buy_threshold)
         sell_level = buy_level * (1 + sell_threshold)
-        return buy_level, sell_level, "Wait for a dip before entering, then lock profit after a rebound."
+        return buy_level, sell_level, "Wait for the price to drop, then sell after it goes back up."
 
     buy_level = float(np.percentile(future_values, 45))
     sell_level = float(np.percentile(future_values, 65))
-    return buy_level, sell_level, "Enter after upward momentum appears and exit once the upward phase begins to fade."
+    return buy_level, sell_level, "Buy when the price keeps rising and sell when that rise starts to fade."
 
 
 def build_strategy_rules_table(simulated_days: int) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "strategy": "A - Buy & Hold",
-                "when_to_buy": "Buy immediately at the starting exchange rate.",
-                "when_to_sell": f"Sell after {simulated_days} simulated days.",
-                "meaning": "Good when you expect the price to keep moving up in a steady way.",
+                "strategy": "A - Buy and wait",
+                "when_to_buy": "Buy now at the starting rate.",
+                "when_to_sell": f"Sell after {simulated_days} test days.",
+                "meaning": "Good when you think the price will slowly keep going up.",
             },
             {
-                "strategy": "B - Threshold",
-                "when_to_buy": "Buy only after the rate drops by 1% or more.",
-                "when_to_sell": "Sell after the bought rate rises by 1.5% or more.",
-                "meaning": "Good when price goes down first and then comes back up.",
+                "strategy": "B - Buy after a drop",
+                "when_to_buy": "Buy only after the price drops by 1% or more.",
+                "when_to_sell": "Sell after the bought price rises by 1.5% or more.",
+                "meaning": "Good when price falls first and then comes back up.",
             },
             {
-                "strategy": "C - Trend-following",
-                "when_to_buy": "Buy after 3 straight days of upward movement.",
-                "when_to_sell": "Sell after 3 straight days of downward movement.",
-                "meaning": "Good when the market shows a short clear trend.",
+                "strategy": "C - Follow the trend",
+                "when_to_buy": "Buy after 3 days in a row of price increases.",
+                "when_to_sell": "Sell after 3 days in a row of price drops.",
+                "meaning": "Good when the market shows a short clear direction.",
             },
         ]
     )
@@ -266,10 +266,10 @@ def get_best_strategy(summary_df: pd.DataFrame) -> pd.Series:
 
 def explain_best_strategy(best_strategy: pd.Series) -> str:
     if best_strategy["strategy_code"] == "Strategy A":
-        return "We picked Buy and Hold because the model expects the rate to move up in a more steady way."
+        return "We picked buy and wait because the price looks more likely to rise in a steady way."
     if best_strategy["strategy_code"] == "Strategy B":
-        return "We picked Threshold because the model likes waiting for a dip and then selling after a clear bounce."
-    return "We picked Trend-following because the model sees short trends that can be followed step by step."
+        return "We picked buy after a drop because waiting for a lower price looks safer here."
+    return "We picked follow the trend because the price seems to move in short clear directions."
 
 
 def parse_extra_currency_rates(
@@ -296,13 +296,13 @@ def parse_extra_currency_rates(
             parts = clean_line.split()
             if len(parts) != 2:
                 raise ValueError(
-                    "Write extra rates like EUR=1320. Example: 1 EUR = 1320 in your local money."
+                    "Write extra rates like EUR=1320. Example: 1 EUR = 1320 in your local currency."
                 )
             code_part, value_part = parts
 
         currency_code = code_part.strip().upper()
         if not currency_code:
-            raise ValueError("Each extra rate must have a currency code, like EUR or GBP.")
+            raise ValueError("Each extra rate needs a currency code, like EUR or GBP.")
 
         try:
             rate_value = float(value_part.strip())
@@ -326,9 +326,9 @@ def convert_currency_amount(
     rate_map: dict[str, float],
 ) -> float:
     if from_currency not in rate_map:
-        raise ValueError(f"'{from_currency}' is missing from the calculator rates.")
+        raise ValueError(f"'{from_currency}' is not in your rate list.")
     if to_currency not in rate_map:
-        raise ValueError(f"'{to_currency}' is missing from the calculator rates.")
+        raise ValueError(f"'{to_currency}' is not in your rate list.")
 
     local_amount = float(amount) * float(rate_map[from_currency])
     return local_amount / float(rate_map[to_currency])
@@ -359,34 +359,34 @@ def build_pdf_report(report: dict) -> bytes:
     )
 
     story = [
-        Paragraph("Forex Simulation Report", title_style),
+        Paragraph("Rate Test Report", title_style),
         Spacer(1, 8),
         Paragraph(
-            f"Best strategy: {report['best_strategy_code']} - {report['best_strategy_name']}",
+            f"Best choice: {report.get('best_strategy_label', report['best_strategy_code'])} - {report['best_strategy_name']}",
             heading_style,
         ),
         Paragraph(report["best_explanation"], body_style),
         Spacer(1, 8),
         Paragraph(report["best_reason_short"], body_style),
         Spacer(1, 12),
-        Paragraph("Simple Summary", heading_style),
+        Paragraph("Quick summary", heading_style),
         Paragraph(report["simulation_story"], body_style),
         Spacer(1, 12),
-        Paragraph("Main Inputs", heading_style),
+        Paragraph("Your inputs", heading_style),
     ]
 
     input_rows = [
         ["Input", "Value"],
         ["Source", report["source_label"]],
-        ["Opening rate", report["starting_rate"]],
+        ["Start rate", report["starting_rate"]],
         ["Local currency", report["local_currency"]],
         ["Target currency", report["target_currency"]],
-        ["mu", report["mu"]],
-        ["sigma", report["sigma"]],
+        ["Average daily change", report["mu"]],
+        ["Market swing", report["sigma"]],
         ["Days", str(report["days"])],
-        ["Monte Carlo runs", str(report["n_simulations"])],
-        ["Buy level", report["suggested_buy"]],
-        ["Sell level", report["suggested_sell"]],
+        ["Number of test runs", str(report["n_simulations"])],
+        ["Buy rate idea", report["suggested_buy"]],
+        ["Sell rate idea", report["suggested_sell"]],
     ]
 
     input_table = Table(input_rows, colWidths=[55 * mm, 110 * mm], repeatRows=1)
@@ -401,7 +401,7 @@ def build_pdf_report(report: dict) -> bytes:
             ]
         )
     )
-    story.extend([input_table, Spacer(1, 12), Paragraph("Money View", heading_style)])
+    story.extend([input_table, Spacer(1, 12), Paragraph("Money view", heading_style)])
 
     for card in report["scenario_cards"]:
         story.append(Paragraph(f"<b>{card['label']}:</b> {card['value']}", body_style))
@@ -411,7 +411,7 @@ def build_pdf_report(report: dict) -> bytes:
     story.extend(
         [
             Spacer(1, 10),
-            Paragraph("Calculator Result", heading_style),
+            Paragraph("Calculator result", heading_style),
             Paragraph(
                 f"{report['calculator_summary']['from_amount']} becomes "
                 f"{report['calculator_summary']['to_amount']}.",
@@ -419,11 +419,11 @@ def build_pdf_report(report: dict) -> bytes:
             ),
             Paragraph(report["calculator_summary"]["rate_note"], small_style),
             Spacer(1, 12),
-            Paragraph("Strategy Comparison", heading_style),
+            Paragraph("All options", heading_style),
         ]
     )
 
-    strategy_rows = [["Strategy", "Average return", "Risk", "Total profit", "Score"]]
+    strategy_rows = [["Option", "Average gain", "Risk", "Total gain", "Balance score"]]
     for row in report["strategy_rows"]:
         strategy_rows.append(
             [
@@ -450,19 +450,19 @@ def build_pdf_report(report: dict) -> bytes:
             ]
         )
     )
-    story.extend([strategy_table, Spacer(1, 12), Paragraph("End Rate Summary", heading_style)])
+    story.extend([strategy_table, Spacer(1, 12), Paragraph("Ending rate summary", heading_style)])
 
     for key, label in [
-        ("minimum", "Minimum"),
-        ("median", "Median"),
-        ("maximum", "Maximum"),
-        ("above_start_probability", "Finished above start"),
+        ("minimum", "Lowest"),
+        ("median", "Middle"),
+        ("maximum", "Highest"),
+        ("above_start_probability", "Chance it ends above today"),
     ]:
         story.append(Paragraph(f"<b>{label}:</b> {report['terminal_summary'][key]}", body_style))
 
     if report["terminal_histogram_rows"]:
-        story.extend([Spacer(1, 10), Paragraph("Histogram Details", heading_style)])
-        histogram_rows = [["Range", "Paths"]]
+        story.extend([Spacer(1, 10), Paragraph("End result table", heading_style)])
+        histogram_rows = [["Range", "Runs"]]
         for row in report["terminal_histogram_rows"]:
             histogram_rows.append([row["label"], str(row["count"])])
 
@@ -479,8 +479,8 @@ def build_pdf_report(report: dict) -> bytes:
         story.append(histogram_table)
 
     if report["weekday_rows"]:
-        story.extend([Spacer(1, 12), Paragraph("Weekday Summary", heading_style)])
-        weekday_rows = [["Day", "Average rate", "Average change", "Count", "Mood"]]
+        story.extend([Spacer(1, 12), Paragraph("Daily pattern", heading_style)])
+        weekday_rows = [["Day", "Average rate", "Average change", "Count", "Pattern"]]
         for row in report["weekday_rows"]:
             weekday_rows.append(
                 [
@@ -508,8 +508,8 @@ def build_pdf_report(report: dict) -> bytes:
         )
         story.append(weekday_table)
 
-    story.extend([Spacer(1, 12), Paragraph("Trading Rules", heading_style)])
-    rule_rows = [["Strategy", "Buy", "Sell", "Meaning"]]
+    story.extend([Spacer(1, 12), Paragraph("Buy and sell rules", heading_style)])
+    rule_rows = [["Option", "Buy", "Sell", "Meaning"]]
     for row in report["strategy_rules_rows"]:
         rule_rows.append(
             [

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Simulation</title>
+    <title>Rate Test</title>
     <style>
       :root {
         --bg: #f7f1e7;
@@ -326,21 +326,21 @@
         <div class="hero-grid">
           <div>
             <div class="eyebrow">Easy forex app</div>
-            <h1>Simulation</h1>
+            <h1>Rate Test</h1>
             <p>
-              This app helps you test exchange-rate ideas in simple steps. It explains the fields,
-              converts money between currencies, and shows which strategy looks best after analysis.
+              This app helps you test exchange-rate ideas in simple steps. It explains each field,
+              converts money, and shows the option that looks best.
             </p>
             <div class="grid-3" style="margin-top: 16px;">
               <div class="tip"><strong>Step 1</strong><div class="mini">Set your rate and money.</div></div>
-              <div class="tip"><strong>Step 2</strong><div class="mini">Run the simulation.</div></div>
-              <div class="tip"><strong>Step 3</strong><div class="mini">Read the best strategy and why.</div></div>
+              <div class="tip"><strong>Step 2</strong><div class="mini">Run the test.</div></div>
+              <div class="tip"><strong>Step 3</strong><div class="mini">Read the best option and why.</div></div>
             </div>
           </div>
           <div class="hero-box">
             <div class="mini">Live rate</div>
             <strong id="heroRate">1 {{ form.target_currency }} = {{ form.starting_rate }} {{ form.local_currency }}</strong>
-            <p id="heroConvert">Type an amount below to see a quick conversion.</p>
+            <p id="heroConvert">Type an amount below to see a quick change.</p>
           </div>
         </div>
       </section>
@@ -348,8 +348,8 @@
       <section class="layout">
         <aside class="panel">
           <div class="eyebrow">Inputs</div>
-          <h2>Run your test</h2>
-          <p class="help">Short words, simple meaning, and live help for each part.</p>
+          <h2>Run your check</h2>
+          <p class="help">Simple words and short help for each part.</p>
 
           {% if errors %}
             {% for error in errors %}
@@ -373,14 +373,14 @@
 
             <div class="field">
               <label for="extra_currency_rates">More currency rates</label>
-              <div class="field-help">Add extra currencies in local money. Example: <code>EUR=1320</code> or <code>GBP=1500</code>.</div>
+              <div class="field-help">Add more currencies in local money. Example: <code>EUR=1320</code> or <code>GBP=1500</code>.</div>
               <textarea id="extra_currency_rates" name="extra_currency_rates">{{ form.extra_currency_rates }}</textarea>
             </div>
 
             <div class="calc-box">
-              <div class="eyebrow">Working calculator</div>
+              <div class="eyebrow">Calculator</div>
               <h3>Exchange money</h3>
-              <div class="field-help">This now looks more like an exchange app. It works live with the rate you enter here.</div>
+              <div class="field-help">This changes live with the rate you enter here.</div>
               <div class="grid-3">
                 <div class="field">
                   <label for="calculator_amount">Amount</label>
@@ -422,112 +422,112 @@
                   </div>
                 </div>
 
-                <div class="exchange-footnote" id="calcNote">Add a valid amount and rate to see the exchange.</div>
+                <div class="exchange-footnote" id="calcNote">Add an amount and a rate to see the result.</div>
               </div>
 
               <div class="calc-quick-grid">
                 <div class="calc-quick-card">
-                  <strong>Quick answer</strong>
+                  <strong>Result now</strong>
                   <div class="mini" id="calcAnswer">-</div>
                 </div>
                 <div class="calc-quick-card">
-                  <strong>Reverse rate</strong>
+                  <strong>Rate the other way</strong>
                   <div class="mini" id="calcReverseRate">-</div>
                 </div>
               </div>
             </div>
 
-            <div class="field">
-              <label for="input_mode">Input method</label>
-              <div class="field-help">Choose manual if you know the values. Choose upload if your CSV should fill them.</div>
-              <select id="input_mode" name="input_mode">
-                <option value="manual" {% if form.input_mode == "manual" %}selected{% endif %}>Manual entry</option>
-                <option value="upload" {% if form.input_mode == "upload" %}selected{% endif %}>Upload CSV</option>
-              </select>
-            </div>
+              <div class="field">
+                <label for="input_mode">Input method</label>
+                <div class="field-help">Choose typed by hand if you know the values. Choose CSV if the file should fill them.</div>
+                <select id="input_mode" name="input_mode">
+                  <option value="manual" {% if form.input_mode == "manual" %}selected{% endif %}>Typed by hand</option>
+                  <option value="upload" {% if form.input_mode == "upload" %}selected{% endif %}>CSV file</option>
+                </select>
+              </div>
 
             <div class="field">
               <label for="history_file">Historical CSV</label>
-              <div class="field-help">Upload a file with a Date column and rate column.</div>
+              <div class="field-help">Upload a file with a Date column and a rate column.</div>
               <input id="history_file" name="history_file" type="file" accept=".csv">
             </div>
 
             <div class="field">
               <label for="manual_series">Manual rate list</label>
-              <div class="field-help">Paste rates here if you do not have a file. Example: 1170, 1174, 1178</div>
+              <div class="field-help">Paste rates here if you do not have a file. Example: 1170, 1174, 1178.</div>
               <textarea id="manual_series" name="manual_series">{{ form.manual_series }}</textarea>
             </div>
 
             <div class="grid-2">
               <div class="field">
                 <label for="starting_rate">Starting rate</label>
-                <div class="field-help">Current rate today. Example: 1200 means 1 USD = 1200 RWF.</div>
-                <div class="impact">If this goes up: the foreign money costs more.</div>
+                <div class="field-help">The rate today. Example: 1200 means 1 USD = 1200 RWF.</div>
+                <div class="impact">If this goes up, the foreign money costs more.</div>
                 <input id="starting_rate" name="starting_rate" type="number" step="0.01" min="0.01" value="{{ form.starting_rate }}">
               </div>
               <div class="field">
-                <label for="initial_capital">Initial capital</label>
-                <div class="field-help">How much money you start with in your local currency.</div>
+                <label for="initial_capital">Money you start with</label>
+                <div class="field-help">How much local money you start with.</div>
                 <input id="initial_capital" name="initial_capital" type="number" step="1000" min="1000" value="{{ form.initial_capital }}">
               </div>
             </div>
 
             <div class="grid-2">
               <div class="field">
-                <label for="mu">mu</label>
-                <div class="field-help">Average daily price move.</div>
-                <div class="impact">If this goes up: price tends to rise more often.</div>
+                <label for="mu">Average daily change</label>
+                <div class="field-help">How much the price usually changes each day.</div>
+                <div class="impact">If this goes up, the price tends to rise more often.</div>
                 <input id="mu" name="mu" type="number" step="0.01" value="{{ form.mu }}">
               </div>
               <div class="field">
-                <label for="sigma">sigma</label>
-                <div class="field-help">How unstable the market is.</div>
-                <div class="impact">If this goes up: the market becomes more random.</div>
+                <label for="sigma">Market swing</label>
+                <div class="field-help">How much the market jumps up and down.</div>
+                <div class="impact">If this goes up, the market becomes more random.</div>
                 <input id="sigma" name="sigma" type="number" step="0.01" min="0" value="{{ form.sigma }}">
               </div>
             </div>
 
             <div class="grid-2">
               <div class="field">
-                <label for="days">Days to simulate</label>
-                <div class="field-help">How far into the future you want to test.</div>
+                <label for="days">Days to test</label>
+                <div class="field-help">How many future days you want to test.</div>
                 <input id="days" name="days" type="number" step="1" min="7" max="365" value="{{ form.days }}">
               </div>
               <div class="field">
-                <label for="n_simulations">Monte Carlo runs</label>
-                <div class="field-help">How many possible futures to create.</div>
-                <div class="impact">If this goes up: results become more stable.</div>
+                <label for="n_simulations">Number of test runs</label>
+                <div class="field-help">How many possible futures to test.</div>
+                <div class="impact">If this goes up, the result becomes more stable.</div>
                 <input id="n_simulations" name="n_simulations" type="number" step="100" min="100" max="10000" value="{{ form.n_simulations }}">
               </div>
             </div>
 
             <div class="grid-2">
               <div class="field">
-                <label for="buy_threshold_percent">Buy threshold (%)</label>
-                <div class="field-help">Buy when price drops by this percent.</div>
+                <label for="buy_threshold_percent">Buy drop (%)</label>
+                <div class="field-help">Buy when the price drops by this percent.</div>
                 <input id="buy_threshold_percent" name="buy_threshold_percent" type="number" step="0.1" value="{{ form.buy_threshold_percent }}">
               </div>
               <div class="field">
-                <label for="sell_threshold_percent">Sell threshold (%)</label>
+                <label for="sell_threshold_percent">Sell gain (%)</label>
                 <div class="field-help">Sell when profit reaches this percent.</div>
                 <input id="sell_threshold_percent" name="sell_threshold_percent" type="number" step="0.1" value="{{ form.sell_threshold_percent }}">
               </div>
             </div>
 
             <div class="field">
-              <label for="trend_lookback">Trend lookback</label>
-              <div class="field-help">Number of days used to check if price keeps moving in one direction.</div>
+              <label for="trend_lookback">Trend check days</label>
+              <div class="field-help">How many days to check for the same direction.</div>
               <input id="trend_lookback" name="trend_lookback" type="number" step="1" min="2" max="10" value="{{ form.trend_lookback }}">
             </div>
 
             <div class="prompt-box">
               <div class="eyebrow">Prompt for AI</div>
-              <div class="help">If you want your AI to write app descriptions like this, use:</div>
+              <div class="help">If you want AI to write text like this, use:</div>
               <pre>For every input field, button, and result in the app, write a short simple explanation in easy English. Explain what the user should do and what it means in real life. Keep it under 1 to 2 lines each.</pre>
             </div>
 
             <div class="actions">
-              <button type="submit">Run analysis</button>
+              <button type="submit">Run test</button>
             </div>
           </form>
         </aside>
@@ -535,27 +535,27 @@
         <section class="results">
           {% if results %}
             <article class="card highlight">
-              <div class="eyebrow">Best strategy</div>
+              <div class="eyebrow">Best option</div>
               <h2>{{ results.best_strategy_code }} - {{ results.best_strategy_name }}</h2>
               <p>{{ results.best_explanation }}</p>
               <div class="small-card" style="margin-top: 14px;">
-                <strong>Why we picked it</strong>
+                <strong>Why this one</strong>
                 <div class="mini">{{ results.best_reason_short }}</div>
               </div>
               <div class="metrics">
-                <div class="metric"><span class="label">Expected return</span><span class="value">{{ results.best_average_return }}</span></div>
-                <div class="metric"><span class="label">Risk</span><span class="value">{{ results.best_risk }}</span></div>
-                <div class="metric"><span class="label">Buy idea</span><span class="value">{{ results.suggested_buy }}</span></div>
-                <div class="metric"><span class="label">Sell idea</span><span class="value">{{ results.suggested_sell }}</span></div>
+                <div class="metric"><span class="label">Expected gain</span><span class="value">{{ results.best_average_return }}</span></div>
+                <div class="metric"><span class="label">Risk level</span><span class="value">{{ results.best_risk }}</span></div>
+                <div class="metric"><span class="label">Good buy rate</span><span class="value">{{ results.suggested_buy }}</span></div>
+                <div class="metric"><span class="label">Good sell rate</span><span class="value">{{ results.suggested_sell }}</span></div>
               </div>
               <div class="metrics">
                 <div class="metric"><span class="label">Input mode</span><span class="value">{{ results.input_mode_label }}</span></div>
                 <div class="metric"><span class="label">Source</span><span class="value">{{ results.source_label }}</span></div>
-                <div class="metric"><span class="label">Buy threshold</span><span class="value">{{ results.buy_threshold_display }}</span></div>
-                <div class="metric"><span class="label">Sell threshold</span><span class="value">{{ results.sell_threshold_display }}</span></div>
+                <div class="metric"><span class="label">Buy drop</span><span class="value">{{ results.buy_threshold_display }}</span></div>
+                <div class="metric"><span class="label">Sell gain</span><span class="value">{{ results.sell_threshold_display }}</span></div>
               </div>
               <div class="actions">
-                <a class="download" href="{{ results.summary_download_url }}" download="forex_simulation_report.pdf">Download PDF report</a>
+                <a class="download" href="{{ results.summary_download_url }}" download="forex_simulation_report.pdf">Download simple report</a>
               </div>
             </article>
 
@@ -576,7 +576,7 @@
 
             <article class="card">
               <div class="eyebrow">Calculator result</div>
-              <h3>Your last conversion</h3>
+              <h3>Your conversion</h3>
               <div class="grid-2">
                 <div class="small-card"><strong>From</strong><div class="mini">{{ results.calculator_summary.from_amount }}</div></div>
                 <div class="small-card"><strong>To</strong><div class="mini">{{ results.calculator_summary.to_amount }}</div></div>
@@ -586,9 +586,9 @@
 
             <div class="split">
               <article class="card">
-                <div class="eyebrow">Working chart</div>
-                <h3>History and average forecast</h3>
-                <p class="help">This chart is built from your real analysis values, not a static image.</p>
+                <div class="eyebrow">Chart</div>
+                <h3>Past rates and average future line</h3>
+                <p class="help">This chart is made from your own values.</p>
                 <div class="chart" style="margin-top: 12px;">
                   <svg viewBox="0 0 420 160" role="img" aria-label="Forecast chart">
                     <line x1="16" y1="24" x2="404" y2="24"></line>
@@ -603,36 +603,36 @@
               </article>
 
               <article class="card">
-                <div class="eyebrow">Working histogram</div>
-                <h3>End-rate distribution</h3>
+                <div class="eyebrow">End results</div>
+                <h3>Where the ending rate may land</h3>
                 <div class="histogram-shell">
                   <div class="hist-top">
                     <div class="hist-stat">
-                      <span class="label">Minimum</span>
+                      <span class="label">Lowest</span>
                       <strong>{{ results.terminal_summary.minimum_value }}</strong>
                       <small>{{ results.terminal_summary.pair_label }}</small>
                     </div>
                     <div class="hist-stat">
-                      <span class="label">Median</span>
+                      <span class="label">Middle</span>
                       <strong>{{ results.terminal_summary.median_value }}</strong>
                       <small>{{ results.terminal_summary.pair_label }}</small>
                     </div>
                     <div class="hist-stat">
-                      <span class="label">Maximum</span>
+                      <span class="label">Highest</span>
                       <strong>{{ results.terminal_summary.maximum_value }}</strong>
                       <small>{{ results.terminal_summary.pair_label }}</small>
                     </div>
                     <div class="hist-stat">
-                      <span class="label">Above start</span>
+                      <span class="label">Above today</span>
                       <strong>{{ results.terminal_summary.above_start_probability }}</strong>
-                      <small>Chance to finish above today</small>
+                      <small>Chance the rate ends above today</small>
                     </div>
                   </div>
 
                   <div class="hist-chart">
                     <div class="histogram">
                       {% for row in results.terminal_histogram_rows %}
-                        <div class="hist-col" title="{{ row.label }} : {{ row.count }} paths">
+                        <div class="hist-col" title="{{ row.label }} : {{ row.count }} runs">
                           <div class="mini">{{ row.count }}</div>
                           <div class="hist-bar" style="height: {{ row.height }}%;"></div>
                           <div class="hist-label">{{ row.label }}</div>
@@ -645,17 +645,17 @@
             </div>
 
             <article class="card">
-              <div class="eyebrow">Strategy table</div>
-              <h3>All strategies</h3>
+              <div class="eyebrow">Options table</div>
+              <h3>All options</h3>
               <div class="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Strategy</th>
-                      <th>Average return</th>
+                      <th>Option</th>
+                      <th>Average gain</th>
                       <th>Risk</th>
-                      <th>Total profit</th>
-                      <th>Score</th>
+                      <th>Total gain</th>
+                      <th>Balance score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -674,13 +674,13 @@
             </article>
 
             <article class="card">
-              <div class="eyebrow">Trading rules</div>
-              <h3>When each strategy buys and sells</h3>
+              <div class="eyebrow">Buy and sell rules</div>
+              <h3>When each option buys and sells</h3>
               <div class="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Strategy</th>
+                      <th>Option</th>
                       <th>Buy</th>
                       <th>Sell</th>
                       <th>Meaning</th>
@@ -702,8 +702,8 @@
 
             {% if results.weekday_rows %}
               <article class="card">
-                <div class="eyebrow">History help</div>
-                <h3>Weekday summary</h3>
+                <div class="eyebrow">Past pattern</div>
+                <h3>Daily pattern</h3>
                 <div class="table-wrap">
                   <table>
                     <thead>
@@ -712,7 +712,7 @@
                         <th>Average rate</th>
                         <th>Average change</th>
                         <th>Count</th>
-                        <th>Mood</th>
+                        <th>Pattern</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -733,10 +733,10 @@
           {% else %}
             <article class="card">
               <div class="eyebrow">Results</div>
-              <h2>Your analysis will show here</h2>
+              <h2>Your results will show here</h2>
               <p>
-                After you run the app, you will see the best strategy, why it was chosen,
-                a working histogram, a working forecast chart, and a PDF report you can open.
+                After you run the app, you will see the best option, why it was chosen,
+                a chart, an end-result view, and a report you can open.
               </p>
             </article>
           {% endif %}
@@ -840,14 +840,14 @@
 
         heroRate.textContent = Number.isFinite(rate) && rate > 0
           ? `1 ${target} = ${rateFormat.format(rate)} ${local}`
-          : "Add a valid starting rate";
+          : "Add a valid start rate";
         calcRateBadge.textContent = Number.isFinite(rate) && rate > 0
           ? `1 ${target} = ${rateFormat.format(rate)} ${local}`
-          : "Add a valid starting rate";
+          : "Add a valid start rate";
 
         if (!(from in rateMap) || !(to in rateMap) || !Number.isFinite(amount) || amount <= 0) {
           calcAnswer.textContent = "-";
-          calcNote.textContent = "Add a valid amount and rate to see the conversion.";
+          calcNote.textContent = "Add an amount and rate to see the result.";
           calcReverseRate.textContent = "-";
           calcFromAmount.textContent = "0.00";
           calcToAmount.textContent = "0.00";
@@ -855,7 +855,7 @@
           calcToCode.textContent = to || target;
           calcFromCodeLarge.textContent = from || local;
           calcToCodeLarge.textContent = to || target;
-          heroConvert.textContent = "Type an amount below to see a quick conversion.";
+          heroConvert.textContent = "Type an amount below to see a quick change.";
           return;
         }
 
@@ -870,7 +870,7 @@
         calcToCodeLarge.textContent = to;
         calcAnswer.textContent = `${moneyFormat.format(amount)} ${from} = ${moneyFormat.format(converted)} ${to}`;
         calcReverseRate.textContent = `1 ${from} = ${rateFormat.format(reverseRate)} ${to}`;
-        calcNote.textContent = `Exchange rate now: 1 ${from} = ${rateFormat.format(reverseRate)} ${to}`;
+        calcNote.textContent = `Rate now: 1 ${from} = ${rateFormat.format(reverseRate)} ${to}`;
         heroConvert.textContent = `${moneyFormat.format(amount)} ${from} becomes about ${moneyFormat.format(converted)} ${to}.`;
       }
 

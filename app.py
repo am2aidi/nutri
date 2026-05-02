@@ -32,12 +32,30 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
 
 
+FIELD_LABELS = {
+    "starting_rate": "Starting rate",
+    "mu": "Average daily change",
+    "sigma": "Market swing",
+    "days": "Days to test",
+    "n_simulations": "Number of test runs",
+    "initial_capital": "Money you start with",
+    "buy_threshold_percent": "Buy drop percent",
+    "sell_threshold_percent": "Sell gain percent",
+    "trend_lookback": "Trend check days",
+    "calculator_amount": "Amount",
+}
+
+
+def _friendly_field_name(name: str) -> str:
+    return FIELD_LABELS.get(name, name.replace("_", " "))
+
+
 def _parse_float(name: str, default: float) -> float:
     raw_value = request.form.get(name, str(default)).strip()
     try:
         return float(raw_value)
     except ValueError as exc:
-        raise ValueError(f"'{name}' must be a valid number.") from exc
+        raise ValueError(f"{_friendly_field_name(name)} must be a number.") from exc
 
 
 def _parse_int(name: str, default: int) -> int:
@@ -45,7 +63,7 @@ def _parse_int(name: str, default: int) -> int:
     try:
         return int(raw_value)
     except ValueError as exc:
-        raise ValueError(f"'{name}' must be a whole number.") from exc
+        raise ValueError(f"{_friendly_field_name(name)} must be a whole number.") from exc
 
 
 def _data_url(content: str | bytes, mime_type: str) -> str:
@@ -65,6 +83,10 @@ def _format_rate(value: float, local_currency: str, target_currency: str) -> str
 def _clean_currency_label(raw_value: str, fallback: str) -> str:
     label = raw_value.strip().upper()
     return label[:12] if label else fallback
+
+
+def _display_strategy_code(code: str) -> str:
+    return code.replace("Strategy", "Option")
 
 
 def _build_chart_rows(summary_df: pd.DataFrame, metric_key: str, currency_label: str) -> list[dict]:
@@ -180,11 +202,11 @@ def _parse_manual_series(raw_text: str) -> pd.Series:
             values.append(float(candidate))
         except ValueError as exc:
             raise ValueError(
-                "Manual rates must be numbers only, separated by commas or one value per line."
+                "The rate list must contain numbers only, separated by commas or one number per line."
             ) from exc
 
     if values and len(values) < 2:
-        raise ValueError("Enter at least two manual rate values so the app can estimate mu and sigma.")
+        raise ValueError("Enter at least two rate values so the app can estimate the trend and market swing.")
 
     return pd.Series(values, dtype=float)
 
@@ -194,7 +216,7 @@ def _serialize_strategy_rows(summary_df: pd.DataFrame, currency_label: str) -> l
     for _, row in summary_df.iterrows():
         rows.append(
             {
-                "strategy_code": row["strategy_code"],
+                "strategy_code": _display_strategy_code(row["strategy_code"]),
                 "name": row["name"],
                 "average_return": _format_money(float(row["average_return"]), currency_label),
                 "risk_std_dev": _format_money(float(row["risk_std_dev"]), currency_label),
@@ -286,14 +308,14 @@ def index():
             form_values["target_currency"] = target_currency
 
             history_df = pd.DataFrame()
-            source_label = "Manual entry"
+            source_label = "Typed by hand"
             selected_pair = None
             rate_column = None
 
             if input_mode == "upload":
                 uploaded_file = request.files.get("history_file")
                 if uploaded_file is None or not uploaded_file.filename:
-                    raise ValueError("Upload a CSV file to estimate the model from historical exchange rates.")
+                    raise ValueError("Upload a CSV file so the app can read past exchange rates.")
 
                 uploaded_df = pd.read_csv(uploaded_file)
                 is_valid, message = validate_csv(uploaded_df)
@@ -313,7 +335,7 @@ def index():
                 manual_series = _parse_manual_series(form_values["manual_series"])
                 if not manual_series.empty:
                     starting_rate, mu, sigma = derive_parameters_from_history(manual_series)
-                    source_label = "Manual rate list"
+                    source_label = "Rate list you typed"
                     form_values["starting_rate"] = f"{starting_rate:.4f}"
                     form_values["mu"] = f"{mu:.4f}"
                     form_values["sigma"] = f"{sigma:.4f}"
@@ -381,17 +403,17 @@ def index():
                 {
                     "label": "Start with",
                     "value": _format_money(initial_capital, local_currency),
-                    "detail": f"Capital entered before the model starts.",
+                    "detail": "This is the money you start with.",
                 },
                 {
-                    "label": f"Can buy now",
+                    "label": "Can buy now",
                     "value": f"{starting_foreign_units:,.2f} {target_currency}",
-                    "detail": f"At {_format_rate(starting_rate, local_currency, target_currency)}.",
+                    "detail": f"Using the start rate of {_format_rate(starting_rate, local_currency, target_currency)}.",
                 },
                 {
-                    "label": "Median end value",
+                    "label": "Likely end value",
                     "value": _format_money(starting_foreign_units * median_terminal_rate, local_currency),
-                    "detail": f"If the end rate lands near {_format_rate(median_terminal_rate, local_currency, target_currency)}.",
+                    "detail": f"If the ending rate is close to {_format_rate(median_terminal_rate, local_currency, target_currency)}.",
                 },
                 {
                     "label": "Possible range",
@@ -399,24 +421,25 @@ def index():
                         f"{_format_money(starting_foreign_units * float(np.min(terminal_values)), local_currency)}"
                         f" to {_format_money(starting_foreign_units * float(np.max(terminal_values)), local_currency)}"
                     ),
-                    "detail": "Worst and best end values from the simulated terminal rates.",
+                    "detail": "A simple low-to-high range from the test results.",
                 },
             ]
             best_reason_short = (
-                f"It had the best balance of return and risk score, with an average return of "
-                f"{_format_money(float(best_strategy['average_return']), local_currency)} "
-                f"and risk of {_format_money(float(best_strategy['risk_std_dev']), local_currency)}."
+                f"It gave the best mix of gain and risk in this test. "
+                f"Average gain was {_format_money(float(best_strategy['average_return']), local_currency)} "
+                f"with risk of {_format_money(float(best_strategy['risk_std_dev']), local_currency)}."
             )
             pdf_report = build_pdf_report(
                 {
                     "best_strategy_code": best_strategy["strategy_code"],
+                    "best_strategy_label": _display_strategy_code(best_strategy["strategy_code"]),
                     "best_strategy_name": best_strategy["name"],
                     "best_explanation": explain_best_strategy(best_strategy),
                     "best_reason_short": best_reason_short,
                     "simulation_story": (
-                        f"If you start with {_format_money(initial_capital, local_currency)}, the model treats that as "
-                        f"about {starting_foreign_units:,.2f} {target_currency} at the opening rate. "
-                        f"From there, the Monte Carlo paths show how that value could rise or fall over {days} days."
+                        f"If you start with {_format_money(initial_capital, local_currency)}, you can buy about "
+                        f"{starting_foreign_units:,.2f} {target_currency} at the start rate. "
+                        f"The test then shows simple possible up and down moves over {days} days."
                     ),
                     "source_label": source_label,
                     "starting_rate": _format_rate(float(starting_rate), local_currency, target_currency),
@@ -433,8 +456,8 @@ def index():
                         "from_amount": f"{calculator_amount:,.2f} {calculator_from_currency}",
                         "to_amount": f"{calculator_result:,.2f} {calculator_to_currency}",
                         "rate_note": (
-                            f"Rate map used: 1 {target_currency} = {float(starting_rate):,.4f} {local_currency}. "
-                            f"You can also add more rates in the calculator box."
+                            f"Rate used: 1 {target_currency} = {float(starting_rate):,.4f} {local_currency}. "
+                            f"You can add more currencies in the box above."
                         ),
                     },
                     "strategy_rows": _serialize_strategy_rows(summary_df, local_currency),
@@ -451,7 +474,7 @@ def index():
             )
 
             results = {
-                "input_mode_label": "CSV upload" if input_mode == "upload" else "Manual entry",
+                "input_mode_label": "CSV file" if input_mode == "upload" else "Typed by hand",
                 "source_label": source_label,
                 "local_currency": local_currency,
                 "target_currency": target_currency,
@@ -460,7 +483,7 @@ def index():
                 "sigma": f"{float(sigma):,.4f}",
                 "days": days,
                 "n_simulations": n_simulations,
-                "best_strategy_code": best_strategy["strategy_code"],
+                "best_strategy_code": _display_strategy_code(best_strategy["strategy_code"]),
                 "best_strategy_name": best_strategy["name"],
                 "best_average_return": _format_money(float(best_strategy["average_return"]), local_currency),
                 "best_risk": _format_money(float(best_strategy["risk_std_dev"]), local_currency),
@@ -500,16 +523,16 @@ def index():
                     "from_amount": f"{calculator_amount:,.2f} {calculator_from_currency}",
                     "to_amount": f"{calculator_result:,.2f} {calculator_to_currency}",
                     "rate_note": (
-                        f"We convert through {local_currency}. "
+                        f"We convert using {local_currency}. "
                         f"1 {target_currency} = {float(starting_rate):,.4f} {local_currency}"
                     ),
                 },
                 "available_currencies": available_currencies,
                 "scenario_cards": scenario_cards,
                 "simulation_story": (
-                    f"If you start with {_format_money(initial_capital, local_currency)}, the model treats that as "
-                    f"about {starting_foreign_units:,.2f} {target_currency} at the opening rate. "
-                    f"From there, the Monte Carlo paths show how that value could rise or fall over {days} days."
+                    f"If you start with {_format_money(initial_capital, local_currency)}, you can buy about "
+                    f"{starting_foreign_units:,.2f} {target_currency} at the start rate. "
+                    f"The test then shows simple possible up and down moves over {days} days."
                 ),
             }
         except Exception as exc:
