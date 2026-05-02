@@ -1,3 +1,3 @@
-# Rwanda Forex Strategy Lab
+# Simulation
 
-This repository contains the Vercel-ready Flask version of the exchange-rate simulation app.
+This repository contains the Vercel-ready Flask version of the Simulation app.

@@ -1,4 +1,4 @@
-Project overview: This repository contains the Flask web app and simulation logic used for the Vercel deployment.
+Project overview: This repository contains the Flask web app and simulation logic used for the Vercel deployment of Simulation.
 
 Stochastic Simulation of Currency Exchange Rates for Profit Optimization
 

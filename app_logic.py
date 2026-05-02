@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-from io import StringIO
+from io import BytesIO, StringIO
 
 import numpy as np
 import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from simulation import (
     calculate_metrics,
@@ -185,19 +190,19 @@ def build_strategy_rules_table(simulated_days: int) -> pd.DataFrame:
                 "strategy": "A - Buy & Hold",
                 "when_to_buy": "Buy immediately at the starting exchange rate.",
                 "when_to_sell": f"Sell after {simulated_days} simulated days.",
-                "meaning": "Best when you expect a steady rise over the whole period.",
+                "meaning": "Good when you expect the price to keep moving up in a steady way.",
             },
             {
                 "strategy": "B - Threshold",
                 "when_to_buy": "Buy only after the rate drops by 1% or more.",
                 "when_to_sell": "Sell after the bought rate rises by 1.5% or more.",
-                "meaning": "Best when prices move up and down and you want disciplined entry and exit points.",
+                "meaning": "Good when price goes down first and then comes back up.",
             },
             {
                 "strategy": "C - Trend-following",
                 "when_to_buy": "Buy after 3 straight days of upward movement.",
                 "when_to_sell": "Sell after 3 straight days of downward movement.",
-                "meaning": "Best when the market shows short-term momentum trends.",
+                "meaning": "Good when the market shows a short clear trend.",
             },
         ]
     )
@@ -261,7 +266,276 @@ def get_best_strategy(summary_df: pd.DataFrame) -> pd.Series:
 
 def explain_best_strategy(best_strategy: pd.Series) -> str:
     if best_strategy["strategy_code"] == "Strategy A":
-        return "The model expects a mostly steady increase, so buying once and holding gives the best result."
+        return "We picked Buy and Hold because the model expects the rate to move up in a more steady way."
     if best_strategy["strategy_code"] == "Strategy B":
-        return "The model favors waiting for a cheaper entry and taking profit after a clear rebound."
-    return "The model favors following short upward and downward trends instead of trading immediately."
+        return "We picked Threshold because the model likes waiting for a dip and then selling after a clear bounce."
+    return "We picked Trend-following because the model sees short trends that can be followed step by step."
+
+
+def parse_extra_currency_rates(
+    raw_text: str,
+    local_currency: str,
+    target_currency: str,
+    target_rate: float,
+) -> dict[str, float]:
+    rates = {
+        local_currency: 1.0,
+        target_currency: float(target_rate),
+    }
+
+    for line in raw_text.splitlines():
+        clean_line = line.strip()
+        if not clean_line:
+            continue
+
+        if "=" in clean_line:
+            code_part, value_part = clean_line.split("=", 1)
+        elif ":" in clean_line:
+            code_part, value_part = clean_line.split(":", 1)
+        else:
+            parts = clean_line.split()
+            if len(parts) != 2:
+                raise ValueError(
+                    "Write extra rates like EUR=1320. Example: 1 EUR = 1320 in your local money."
+                )
+            code_part, value_part = parts
+
+        currency_code = code_part.strip().upper()
+        if not currency_code:
+            raise ValueError("Each extra rate must have a currency code, like EUR or GBP.")
+
+        try:
+            rate_value = float(value_part.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"Rate for {currency_code} must be a number. Example: EUR=1320"
+            ) from exc
+
+        if rate_value <= 0:
+            raise ValueError(f"Rate for {currency_code} must be greater than zero.")
+
+        rates[currency_code[:12]] = rate_value
+
+    return rates
+
+
+def convert_currency_amount(
+    amount: float,
+    from_currency: str,
+    to_currency: str,
+    rate_map: dict[str, float],
+) -> float:
+    if from_currency not in rate_map:
+        raise ValueError(f"'{from_currency}' is missing from the calculator rates.")
+    if to_currency not in rate_map:
+        raise ValueError(f"'{to_currency}' is missing from the calculator rates.")
+
+    local_amount = float(amount) * float(rate_map[from_currency])
+    return local_amount / float(rate_map[to_currency])
+
+
+def build_pdf_report(report: dict) -> bytes:
+    buffer = BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=14 * mm,
+        bottomMargin=14 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = styles["Title"]
+    heading_style = styles["Heading2"]
+    body_style = styles["BodyText"]
+    body_style.fontName = "Helvetica"
+    body_style.leading = 14
+    small_style = ParagraphStyle(
+        "SmallBody",
+        parent=body_style,
+        fontSize=9,
+        leading=12,
+    )
+
+    story = [
+        Paragraph("Forex Simulation Report", title_style),
+        Spacer(1, 8),
+        Paragraph(
+            f"Best strategy: {report['best_strategy_code']} - {report['best_strategy_name']}",
+            heading_style,
+        ),
+        Paragraph(report["best_explanation"], body_style),
+        Spacer(1, 8),
+        Paragraph(report["best_reason_short"], body_style),
+        Spacer(1, 12),
+        Paragraph("Simple Summary", heading_style),
+        Paragraph(report["simulation_story"], body_style),
+        Spacer(1, 12),
+        Paragraph("Main Inputs", heading_style),
+    ]
+
+    input_rows = [
+        ["Input", "Value"],
+        ["Source", report["source_label"]],
+        ["Opening rate", report["starting_rate"]],
+        ["Local currency", report["local_currency"]],
+        ["Target currency", report["target_currency"]],
+        ["mu", report["mu"]],
+        ["sigma", report["sigma"]],
+        ["Days", str(report["days"])],
+        ["Monte Carlo runs", str(report["n_simulations"])],
+        ["Buy level", report["suggested_buy"]],
+        ["Sell level", report["suggested_sell"]],
+    ]
+
+    input_table = Table(input_rows, colWidths=[55 * mm, 110 * mm], repeatRows=1)
+    input_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#172033")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#c8d1e1")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.extend([input_table, Spacer(1, 12), Paragraph("Money View", heading_style)])
+
+    for card in report["scenario_cards"]:
+        story.append(Paragraph(f"<b>{card['label']}:</b> {card['value']}", body_style))
+        story.append(Paragraph(card["detail"], small_style))
+        story.append(Spacer(1, 4))
+
+    story.extend(
+        [
+            Spacer(1, 10),
+            Paragraph("Calculator Result", heading_style),
+            Paragraph(
+                f"{report['calculator_summary']['from_amount']} becomes "
+                f"{report['calculator_summary']['to_amount']}.",
+                body_style,
+            ),
+            Paragraph(report["calculator_summary"]["rate_note"], small_style),
+            Spacer(1, 12),
+            Paragraph("Strategy Comparison", heading_style),
+        ]
+    )
+
+    strategy_rows = [["Strategy", "Average return", "Risk", "Total profit", "Score"]]
+    for row in report["strategy_rows"]:
+        strategy_rows.append(
+            [
+                row["name"],
+                row["average_return"],
+                row["risk_std_dev"],
+                row["total_profit"],
+                row["risk_adjusted_score"],
+            ]
+        )
+
+    strategy_table = Table(
+        strategy_rows,
+        colWidths=[34 * mm, 34 * mm, 34 * mm, 34 * mm, 22 * mm],
+        repeatRows=1,
+    )
+    strategy_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fde7d9")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d9d3c5")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.extend([strategy_table, Spacer(1, 12), Paragraph("End Rate Summary", heading_style)])
+
+    for key, label in [
+        ("minimum", "Minimum"),
+        ("median", "Median"),
+        ("maximum", "Maximum"),
+        ("above_start_probability", "Finished above start"),
+    ]:
+        story.append(Paragraph(f"<b>{label}:</b> {report['terminal_summary'][key]}", body_style))
+
+    if report["terminal_histogram_rows"]:
+        story.extend([Spacer(1, 10), Paragraph("Histogram Details", heading_style)])
+        histogram_rows = [["Range", "Paths"]]
+        for row in report["terminal_histogram_rows"]:
+            histogram_rows.append([row["label"], str(row["count"])])
+
+        histogram_table = Table(histogram_rows, colWidths=[110 * mm, 40 * mm], repeatRows=1)
+        histogram_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e3f3f5")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#c7dede")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ]
+            )
+        )
+        story.append(histogram_table)
+
+    if report["weekday_rows"]:
+        story.extend([Spacer(1, 12), Paragraph("Weekday Summary", heading_style)])
+        weekday_rows = [["Day", "Average rate", "Average change", "Count", "Mood"]]
+        for row in report["weekday_rows"]:
+            weekday_rows.append(
+                [
+                    row["weekday"],
+                    row["average_rate"],
+                    row["average_change"],
+                    str(row["observations"]),
+                    row["market_mood"],
+                ]
+            )
+
+        weekday_table = Table(
+            weekday_rows,
+            colWidths=[30 * mm, 40 * mm, 35 * mm, 18 * mm, 45 * mm],
+            repeatRows=1,
+        )
+        weekday_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef2ff")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cdd5ee")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ]
+            )
+        )
+        story.append(weekday_table)
+
+    story.extend([Spacer(1, 12), Paragraph("Trading Rules", heading_style)])
+    rule_rows = [["Strategy", "Buy", "Sell", "Meaning"]]
+    for row in report["strategy_rules_rows"]:
+        rule_rows.append(
+            [
+                row["strategy"],
+                row["when_to_buy"],
+                row["when_to_sell"],
+                row["meaning"],
+            ]
+        )
+
+    rule_table = Table(
+        rule_rows,
+        colWidths=[30 * mm, 46 * mm, 46 * mm, 46 * mm],
+        repeatRows=1,
+    )
+    rule_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ecfdf5")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbe8d7")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(rule_table)
+
+    document.build(story)
+    return buffer.getvalue()

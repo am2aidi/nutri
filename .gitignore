@@ -1,3 +1,5 @@
 # Ignore local Python cache files generated during development.
 __pycache__/
 *.pyc
+app_server.log
+app_server.err
