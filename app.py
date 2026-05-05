@@ -318,6 +318,68 @@ def _build_most_likely_range(histogram_rows: list[dict]) -> dict:
     return max(histogram_rows, key=lambda row: row["count"])
 
 
+def _build_histogram_chart(
+    histogram_rows: list[dict],
+    width: int = 540,
+    height: int = 240,
+) -> dict:
+    if not histogram_rows:
+        return {}
+
+    pad_left = 44
+    pad_right = 18
+    pad_top = 18
+    pad_bottom = 42
+    chart_width = width - pad_left - pad_right
+    chart_height = height - pad_top - pad_bottom
+    bar_gap = 14
+    bar_count = len(histogram_rows)
+    bar_width = (chart_width - (bar_gap * max(0, bar_count - 1))) / max(1, bar_count)
+    max_count = max(int(row["count"]) for row in histogram_rows) or 1
+
+    bars = []
+    for index, row in enumerate(histogram_rows):
+        count_value = int(row["count"])
+        bar_height = (count_value / max_count) * chart_height if max_count else 0
+        x = pad_left + index * (bar_width + bar_gap)
+        y = pad_top + (chart_height - bar_height)
+        bars.append(
+            {
+                "x": f"{x:.1f}",
+                "y": f"{y:.1f}",
+                "width": f"{bar_width:.1f}",
+                "height": f"{max(2.0, bar_height):.1f}",
+                "count": count_value,
+                "percent": row["percent"],
+                "band_name": row["band_name"],
+                "range_label": row["label"],
+                "center_x": f"{(x + (bar_width / 2)):.1f}",
+                "count_y": f"{max(12.0, y - 6):.1f}",
+            }
+        )
+
+    y_ticks = []
+    for tick_value in np.linspace(max_count, 0, 4):
+        y = pad_top + (chart_height - ((tick_value / max_count) * chart_height if max_count else 0))
+        y_ticks.append(
+            {
+                "y": f"{y:.1f}",
+                "label": f"{int(round(float(tick_value)))}",
+            }
+        )
+
+    return {
+        "width": width,
+        "height": height,
+        "bars": bars,
+        "y_ticks": y_ticks,
+        "axis_left": pad_left,
+        "axis_right": width - pad_right,
+        "axis_bottom": height - pad_bottom,
+        "axis_top": pad_top,
+    }
+
+
 def _parse_manual_series(raw_text: str) -> pd.Series:
     cleaned = raw_text.replace(",", "\n")
     values = []
@@ -567,6 +629,7 @@ def index():
             history_analysis = build_history_analysis(history_df) if not history_df.empty else {}
             median_terminal_rate = float(np.median(terminal_values))
             terminal_histogram_rows = _build_histogram_rows(terminal_values)
+            histogram_chart = _build_histogram_chart(terminal_histogram_rows)
             history_chart = (
                 _build_chart_panel(
                     history_df["Rate"].tail(24),
@@ -815,6 +878,7 @@ def index():
                 "history_chart": history_chart,
                 "forecast_chart": forecast_chart,
                 "terminal_histogram_rows": terminal_histogram_rows,
+                "histogram_chart": histogram_chart,
                 "most_likely_range": _build_most_likely_range(terminal_histogram_rows),
                 "terminal_summary": _build_terminal_summary(
                     terminal_values,
