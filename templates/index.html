@@ -364,6 +364,22 @@
         font-size: 0.9rem;
         color: var(--muted);
       }
+      .axis-guide {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .axis-guide-card {
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(24, 33, 51, 0.04);
+        border: 1px solid rgba(24, 33, 51, 0.08);
+      }
+      .axis-guide-card strong {
+        display: block;
+        margin-bottom: 4px;
+      }
       .strategy-bar-positive { fill: #2563eb; }
       .strategy-bar-negative { fill: #dc2626; }
 
@@ -519,7 +535,7 @@
       @media (max-width: 760px) {
         .page { width: min(100% - 18px, 100%); }
         .grid-2, .grid-3, .metrics, .story-grid { grid-template-columns: 1fr; }
-        .calc-quick-grid, .hist-top, .chart-grid, .plot-grid, .plot-stats { grid-template-columns: 1fr; }
+        .calc-quick-grid, .hist-top, .chart-grid, .plot-grid, .plot-stats, .axis-guide { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -904,6 +920,16 @@
                         <div class="plot-stat"><strong>Lowest</strong><span>{{ results.history_chart.low_value }}</span></div>
                         <div class="plot-stat"><strong>Highest</strong><span>{{ results.history_chart.high_value }}</span></div>
                       </div>
+                      <div class="axis-guide">
+                        <div class="axis-guide-card">
+                          <strong>Left side</strong>
+                          <span>Rate in {{ results.terminal_summary.pair_label }}</span>
+                        </div>
+                        <div class="axis-guide-card">
+                          <strong>Bottom side</strong>
+                          <span>Past time from oldest data to latest data</span>
+                        </div>
+                      </div>
                     {% else %}
                       <p class="help">Upload a CSV or type a rate list to see the history plot.</p>
                     {% endif %}
@@ -938,6 +964,16 @@
                       <div class="plot-stat"><strong>Current line</strong><span>{{ results.simulation_paths_chart.current_label }}</span></div>
                       <div class="plot-stat"><strong>Model</strong><span>{{ results.model_cards[0].value }}</span></div>
                     </div>
+                    <div class="axis-guide">
+                      <div class="axis-guide-card">
+                        <strong>Left side</strong>
+                        <span>Rate in {{ results.terminal_summary.pair_label }}</span>
+                      </div>
+                      <div class="axis-guide-card">
+                        <strong>Bottom side</strong>
+                        <span>Future time in simulation days</span>
+                      </div>
+                    </div>
                   </div>
                 </article>
 
@@ -969,13 +1005,23 @@
                       <div class="legend-chip"><span class="legend-line current"></span><span>Current: {{ results.distribution_plot.current_label }}</span></div>
                       <div class="legend-chip"><span class="legend-line median"></span><span>Median: {{ results.distribution_plot.median_label }}</span></div>
                     </div>
+                    <div class="axis-guide">
+                      <div class="axis-guide-card">
+                        <strong>Left side</strong>
+                        <span>Number of simulation runs</span>
+                      </div>
+                      <div class="axis-guide-card">
+                        <strong>Bottom side</strong>
+                        <span>Final rate in {{ results.terminal_summary.pair_label }}</span>
+                      </div>
+                    </div>
                   </div>
                 </article>
 
                 <article class="card">
                   <div class="eyebrow">Plot 4</div>
                   <h3>Strategy Performance Comparison</h3>
-                  <p class="help">This graph compares the expected return for each option as a percentage of the starting money.</p>
+                  <p class="help">This graph compares the expected return for each option in real money.</p>
                   <div class="plot-shell">
                     <svg viewBox="0 0 560 280" role="img" aria-label="Strategy performance comparison">
                       {% for tick in results.strategy_plot.y_ticks %}
@@ -990,7 +1036,17 @@
                         <text class="hist-bar-label" x="{{ bar.center_x }}" y="260">{{ bar.code }}</text>
                       {% endfor %}
                     </svg>
-                    <div class="plot-axis-title">Expected Return (%)</div>
+                    <div class="plot-axis-title">Expected Return Money ({{ results.local_currency }})</div>
+                    <div class="axis-guide">
+                      <div class="axis-guide-card">
+                        <strong>Left side</strong>
+                        <span>Expected return money in {{ results.local_currency }}</span>
+                      </div>
+                      <div class="axis-guide-card">
+                        <strong>Bottom side</strong>
+                        <span>Strategy options A, B, and C</span>
+                      </div>
+                    </div>
                   </div>
                 </article>
               </div>

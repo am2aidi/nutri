@@ -523,19 +523,19 @@ def _build_distribution_plot(
     }
 
 
-def _build_strategy_performance_plot(summary_df: pd.DataFrame, initial_capital: float) -> dict:
+def _build_strategy_performance_plot(summary_df: pd.DataFrame, currency_label: str) -> dict:
     if summary_df.empty:
         return {}
 
     rows = []
     for _, row in summary_df.iterrows():
-        percent_value = (float(row["average_return"]) / float(initial_capital)) * 100 if initial_capital else 0.0
+        money_value = float(row["average_return"])
         rows.append(
             {
                 "code": _display_strategy_code(row["strategy_code"]),
                 "name": row["name"],
-                "value": percent_value,
-                "label": f"{percent_value:+.2f}%",
+                "value": money_value,
+                "label": _format_money(money_value, currency_label),
             }
         )
 
@@ -585,7 +585,12 @@ def _build_strategy_performance_plot(summary_df: pd.DataFrame, initial_capital: 
 
     y_ticks = []
     for tick_value in np.linspace(max_value, min_value, 5):
-        y_ticks.append({"y": f"{scale_y(float(tick_value)):.1f}", "label": f"{float(tick_value):.1f}"})
+        y_ticks.append(
+            {
+                "y": f"{scale_y(float(tick_value)):.1f}",
+                "label": f"{float(tick_value):,.0f}",
+            }
+        )
 
     return {
         "bars": bars,
@@ -932,7 +937,7 @@ def index():
                 local_currency,
                 target_currency,
             )
-            strategy_plot = _build_strategy_performance_plot(summary_df, initial_capital)
+            strategy_plot = _build_strategy_performance_plot(summary_df, local_currency)
             starting_foreign_units = initial_capital / float(starting_rate)
             calculator_foreign_amount = calculator_amount / float(starting_rate)
             scenario_cards = [
