@@ -181,21 +181,90 @@ def _build_histogram_rows(values, bins: int = 5) -> list[dict]:
     return rows
 
 
-def _build_line_points(values, width: int = 420, height: int = 160, pad: int = 16) -> str:
+def _build_line_points(
+    values,
+    width: int = 420,
+    height: int = 200,
+    pad_left: int = 52,
+    pad_right: int = 16,
+    pad_top: int = 18,
+    pad_bottom: int = 28,
+) -> str:
     array = np.asarray(values, dtype=float)
     if array.size == 0:
         return ""
     if array.size == 1:
         return f"{width / 2:.1f},{height / 2:.1f}"
 
-    x_values = np.linspace(pad, width - pad, array.size)
+    x_values = np.linspace(pad_left, width - pad_right, array.size)
     min_value = float(array.min())
     max_value = float(array.max())
     if min_value == max_value:
         max_value = min_value + 1.0
 
-    y_values = height - pad - ((array - min_value) / (max_value - min_value)) * (height - (pad * 2))
+    chart_height = height - pad_top - pad_bottom
+    y_values = height - pad_bottom - ((array - min_value) / (max_value - min_value)) * chart_height
     return " ".join(f"{x_value:.1f},{y_value:.1f}" for x_value, y_value in zip(x_values, y_values))
+
+
+def _build_chart_panel(
+    values,
+    local_currency: str,
+    target_currency: str,
+    start_label: str,
+    middle_label: str,
+    end_label: str,
+    width: int = 420,
+    height: int = 200,
+) -> dict:
+    array = np.asarray(values, dtype=float)
+    if array.size == 0:
+        return {}
+
+    pad_left = 52
+    pad_right = 16
+    pad_top = 18
+    pad_bottom = 28
+    min_value = float(array.min())
+    max_value = float(array.max())
+    if min_value == max_value:
+        max_value = min_value + 1.0
+
+    chart_height = height - pad_top - pad_bottom
+    tick_values = np.linspace(max_value, min_value, 4)
+    y_ticks = []
+    for tick_value in tick_values:
+        y_position = height - pad_bottom - ((tick_value - min_value) / (max_value - min_value)) * chart_height
+        y_ticks.append(
+            {
+                "y": f"{y_position:.1f}",
+                "label": f"{tick_value:,.1f}",
+            }
+        )
+
+    x_ticks = [
+        {"x": f"{pad_left:.1f}", "label": start_label},
+        {"x": f"{((pad_left + (width - pad_right)) / 2):.1f}", "label": middle_label},
+        {"x": f"{(width - pad_right):.1f}", "label": end_label},
+    ]
+
+    latest_value = float(array[-1])
+    return {
+        "points": _build_line_points(
+            array,
+            width=width,
+            height=height,
+            pad_left=pad_left,
+            pad_right=pad_right,
+            pad_top=pad_top,
+            pad_bottom=pad_bottom,
+        ),
+        "y_ticks": y_ticks,
+        "x_ticks": x_ticks,
+        "last_value": _format_rate(latest_value, local_currency, target_currency),
+        "low_value": _format_rate(float(array.min()), local_currency, target_currency),
+        "high_value": _format_rate(float(array.max()), local_currency, target_currency),
+    }
 
 
 def _build_terminal_summary(terminal_values, starting_rate: float, local_currency: str, target_currency: str) -> dict:
@@ -241,6 +310,12 @@ def _build_forecast_checkpoint_rows(
             }
         )
     return rows
+
+
+def _build_most_likely_range(histogram_rows: list[dict]) -> dict:
+    if not histogram_rows:
+        return {}
+    return max(histogram_rows, key=lambda row: row["count"])
 
 
 def _parse_manual_series(raw_text: str) -> pd.Series:
@@ -491,6 +566,27 @@ def index():
             weekday_df = build_weekday_market_summary(history_df) if not history_df.empty else pd.DataFrame()
             history_analysis = build_history_analysis(history_df) if not history_df.empty else {}
             median_terminal_rate = float(np.median(terminal_values))
+            terminal_histogram_rows = _build_histogram_rows(terminal_values)
+            history_chart = (
+                _build_chart_panel(
+                    history_df["Rate"].tail(24),
+                    local_currency,
+                    target_currency,
+                    "Oldest",
+                    "Middle",
+                    "Latest",
+                )
+                if not history_df.empty
+                else {}
+            )
+            forecast_chart = _build_chart_panel(
+                paths.mean(axis=0),
+                local_currency,
+                target_currency,
+                "Today",
+                f"Day {max(1, days // 2)}",
+                f"Day {days}",
+            )
             starting_foreign_units = initial_capital / float(starting_rate)
             calculator_foreign_amount = calculator_amount / float(starting_rate)
             scenario_cards = [
@@ -674,7 +770,7 @@ def index():
                     local_currency,
                     target_currency,
                 ),
-                "terminal_histogram_rows": _build_histogram_rows(terminal_values),
+                "terminal_histogram_rows": terminal_histogram_rows,
                 "forecast_checkpoint_rows": _build_forecast_checkpoint_rows(
                     paths.mean(axis=0),
                     local_currency,
@@ -716,9 +812,10 @@ def index():
                 "level_explanation": level_explanation,
                 "buy_threshold_display": _format_percent(buy_threshold),
                 "sell_threshold_display": _format_percent(sell_threshold),
-                "forecast_line_points": _build_line_points(paths.mean(axis=0)),
-                "history_line_points": _build_line_points(history_df["Rate"].tail(24)) if not history_df.empty else "",
-                "terminal_histogram_rows": _build_histogram_rows(terminal_values),
+                "history_chart": history_chart,
+                "forecast_chart": forecast_chart,
+                "terminal_histogram_rows": terminal_histogram_rows,
+                "most_likely_range": _build_most_likely_range(terminal_histogram_rows),
                 "terminal_summary": _build_terminal_summary(
                     terminal_values,
                     float(starting_rate),

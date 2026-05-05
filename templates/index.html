@@ -217,22 +217,41 @@
       .bar-track { width: 100%; height: 14px; border-radius: 999px; background: rgba(24, 33, 51, 0.08); overflow: hidden; }
       .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(135deg, var(--teal), var(--blue)); }
 
+      .viz-stack { display: grid; gap: 18px; }
+      .chart-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
+        gap: 16px;
+        align-items: start;
+      }
       .chart {
         padding: 16px;
         border-radius: 22px;
-        background: linear-gradient(180deg, #0f1729 0%, #172742 100%);
+        background: linear-gradient(180deg, #fbfdff 0%, #eef5ff 100%);
+        border: 1px solid rgba(23, 102, 242, 0.12);
+      }
+      .chart svg { width: 100%; display: block; }
+      .chart-grid-line { stroke: rgba(24, 33, 51, 0.12); stroke-width: 1; }
+      .chart-axis-label {
+        fill: #5f6d83;
+        font-size: 11px;
+      }
+      .chart-x-label {
+        fill: #5f6d83;
+        font-size: 11px;
+        text-anchor: middle;
       }
       .chart-legend {
         display: flex;
         flex-wrap: wrap;
         gap: 12px;
-        margin-top: 14px;
+        margin-top: 12px;
       }
       .legend-item {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        color: rgba(255, 255, 255, 0.82);
+        color: var(--muted);
         font-size: 0.92rem;
       }
       .legend-swatch {
@@ -240,44 +259,71 @@
         height: 4px;
         border-radius: 999px;
       }
-      .legend-swatch.history { background: rgba(255, 255, 255, 0.48); }
+      .legend-swatch.history { background: #8090aa; }
       .legend-swatch.forecast { background: #63b3ff; }
-      .checkpoint-grid {
+      .chart-side {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
         gap: 10px;
-        margin-top: 14px;
+      }
+      .chart-side .small-card {
+        padding: 12px;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid rgba(24, 33, 51, 0.08);
       }
       .checkpoint-card {
         padding: 12px;
         border-radius: 16px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: #fff;
+        border: 1px solid rgba(24, 33, 51, 0.08);
       }
-      .checkpoint-card strong {
+      .checkpoint-card strong,
+      .chart-side .small-card strong {
         display: block;
         margin-bottom: 4px;
-        color: #fff;
+        color: var(--text);
       }
-      .checkpoint-card span {
-        color: rgba(255, 255, 255, 0.78);
+      .checkpoint-card span,
+      .chart-side .small-card span {
+        color: var(--muted);
         font-size: 0.92rem;
       }
-      .chart svg { width: 100%; display: block; }
-      .chart line { stroke: rgba(255, 255, 255, 0.08); stroke-width: 1; }
-      .history-line { fill: none; stroke: rgba(255, 255, 255, 0.4); stroke-width: 3; }
+      .chart-side .value {
+        display: block;
+        margin-top: 4px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .history-line { fill: none; stroke: #8090aa; stroke-width: 3; }
       .forecast-line { fill: none; stroke: #63b3ff; stroke-width: 4; }
 
       .histogram-shell {
-        margin-top: 14px;
         padding: 16px;
         border-radius: 22px;
         background: linear-gradient(180deg, #fbfcff 0%, #edf4ff 100%);
         border: 1px solid rgba(23, 102, 242, 0.08);
       }
+      .range-highlight {
+        margin-bottom: 14px;
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(23, 102, 242, 0.1), rgba(17, 115, 125, 0.12));
+        border: 1px solid rgba(23, 102, 242, 0.12);
+      }
+      .range-highlight strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 1.08rem;
+      }
+      .range-highlight .value {
+        display: block;
+        margin-top: 4px;
+        font-size: 1.35rem;
+        font-weight: 700;
+      }
       .hist-top {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 10px;
         margin-bottom: 14px;
       }
@@ -355,12 +401,13 @@
       @media (max-width: 1080px) {
         .hero-grid, .layout, .split { grid-template-columns: 1fr; }
         .metrics, .story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .chart-grid, .hist-top { grid-template-columns: 1fr; }
       }
 
       @media (max-width: 760px) {
         .page { width: min(100% - 18px, 100%); }
         .grid-2, .grid-3, .metrics, .story-grid { grid-template-columns: 1fr; }
-        .calc-quick-grid, .hist-top { grid-template-columns: 1fr; }
+        .calc-quick-grid, .hist-top, .chart-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -714,28 +761,73 @@
               <p style="margin-top: 14px;">The simulation uses the rate you typed above as the real current market rate.</p>
             </article>
 
-            <div class="split">
+            <div class="viz-stack">
               <article class="card">
                 <div class="eyebrow">Chart</div>
                 <h3>Past trend and expected path</h3>
-                <p class="help">The gray line shows past clean data. The blue line shows the average path from all simulation runs.</p>
-                <div class="chart" style="margin-top: 12px;">
-                  <svg viewBox="0 0 420 160" role="img" aria-label="Forecast chart">
-                    <line x1="16" y1="24" x2="404" y2="24"></line>
-                    <line x1="16" y1="80" x2="404" y2="80"></line>
-                    <line x1="16" y1="136" x2="404" y2="136"></line>
-                    {% if results.history_line_points %}
-                      <polyline class="history-line" points="{{ results.history_line_points }}"></polyline>
-                    {% endif %}
-                    <polyline class="forecast-line" points="{{ results.forecast_line_points }}"></polyline>
-                  </svg>
-                  <div class="chart-legend">
-                    {% if results.history_line_points %}
+                <p class="help">This view separates the old trend from the future estimate, so both are easier to read.</p>
+                <div class="chart-grid" style="margin-top: 12px;">
+                  <div class="chart">
+                    <div class="eyebrow">Past clean data</div>
+                    <svg viewBox="0 0 420 200" role="img" aria-label="History chart">
+                      {% if results.history_chart %}
+                        {% for tick in results.history_chart.y_ticks %}
+                          <line class="chart-grid-line" x1="52" y1="{{ tick.y }}" x2="404" y2="{{ tick.y }}"></line>
+                          <text class="chart-axis-label" x="4" y="{{ tick.y }}">{{ tick.label }}</text>
+                        {% endfor %}
+                        {% for tick in results.history_chart.x_ticks %}
+                          <text class="chart-x-label" x="{{ tick.x }}" y="194">{{ tick.label }}</text>
+                        {% endfor %}
+                        <polyline class="history-line" points="{{ results.history_chart.points }}"></polyline>
+                      {% endif %}
+                    </svg>
+                    <div class="chart-legend">
                       <div class="legend-item"><span class="legend-swatch history"></span><span>Past clean data</span></div>
-                    {% endif %}
-                    <div class="legend-item"><span class="legend-swatch forecast"></span><span>Average future path</span></div>
+                    </div>
                   </div>
-                  <div class="checkpoint-grid">
+
+                  <div class="chart-side">
+                    {% if results.history_chart %}
+                      <div class="small-card">
+                        <strong>Latest clean rate</strong>
+                        <span class="value">{{ results.history_chart.last_value }}</span>
+                      </div>
+                      <div class="small-card">
+                        <strong>Lowest in clean data</strong>
+                        <span class="value">{{ results.history_chart.low_value }}</span>
+                      </div>
+                      <div class="small-card">
+                        <strong>Highest in clean data</strong>
+                        <span class="value">{{ results.history_chart.high_value }}</span>
+                      </div>
+                    {% else %}
+                      <div class="small-card">
+                        <strong>No history chart</strong>
+                        <span>Upload a CSV or type a rate list to see the past trend here.</span>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="chart-grid" style="margin-top: 16px;">
+                  <div class="chart">
+                    <div class="eyebrow">Average future path</div>
+                    <svg viewBox="0 0 420 200" role="img" aria-label="Forecast chart">
+                      {% for tick in results.forecast_chart.y_ticks %}
+                        <line class="chart-grid-line" x1="52" y1="{{ tick.y }}" x2="404" y2="{{ tick.y }}"></line>
+                        <text class="chart-axis-label" x="4" y="{{ tick.y }}">{{ tick.label }}</text>
+                      {% endfor %}
+                      {% for tick in results.forecast_chart.x_ticks %}
+                        <text class="chart-x-label" x="{{ tick.x }}" y="194">{{ tick.label }}</text>
+                      {% endfor %}
+                      <polyline class="forecast-line" points="{{ results.forecast_chart.points }}"></polyline>
+                    </svg>
+                    <div class="chart-legend">
+                      <div class="legend-item"><span class="legend-swatch forecast"></span><span>Average future path</span></div>
+                    </div>
+                  </div>
+
+                  <div class="chart-side">
                     {% for row in results.forecast_checkpoint_rows %}
                       <div class="checkpoint-card">
                         <strong>{{ row.label }}</strong>
@@ -749,7 +841,17 @@
               <article class="card">
                 <div class="eyebrow">End results</div>
                 <h3>Chance by ending-rate range</h3>
+                <p class="help">The strongest range is highlighted first, then all other ranges are shown below with simple bars.</p>
                 <div class="histogram-shell">
+                  {% if results.most_likely_range %}
+                    <div class="range-highlight">
+                      <strong>Most likely ending range</strong>
+                      <span>{{ results.most_likely_range.band_name }}</span>
+                      <span class="value">{{ results.most_likely_range.percent }}</span>
+                      <div class="mini">{{ results.most_likely_range.label }}</div>
+                    </div>
+                  {% endif %}
+
                   <div class="hist-top">
                     <div class="hist-stat">
                       <span class="label">Lowest</span>
