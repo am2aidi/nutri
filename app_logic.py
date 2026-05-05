@@ -21,7 +21,7 @@ from simulation import (
 
 
 DEFAULTS = {
-    "input_mode": "manual",
+    "input_mode": "upload",
     "starting_rate": 1200.0,
     "mu": 5.0,
     "sigma": 10.0,
@@ -41,19 +41,80 @@ STRATEGY_LABELS = {
 }
 
 
+def _find_column_name(columns, candidates: list[str]) -> str | None:
+    normalized = {str(column).strip().lower(): str(column) for column in columns}
+    for candidate in candidates:
+        match = normalized.get(candidate.lower())
+        if match:
+            return match
+    return None
+
+
+def _coerce_numeric_series(series: pd.Series) -> pd.Series:
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+
+    cleaned = (
+        series.astype(str)
+        .str.strip()
+        .str.replace(",", "", regex=False)
+        .replace({"": np.nan, "nan": np.nan, "None": np.nan})
+    )
+    return pd.to_numeric(cleaned, errors="coerce")
+
+
+def clean_uploaded_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
+    working_df = dataframe.copy()
+    working_df.columns = [str(column).strip() for column in working_df.columns]
+
+    date_column = _find_column_name(
+        working_df.columns,
+        ["Date", "Day", "Timestamp", "Time", "Recorded At"],
+    )
+    if date_column and date_column != "Date":
+        working_df = working_df.rename(columns={date_column: "Date"})
+
+    pair_column = _find_column_name(
+        working_df.columns,
+        ["currency_pair", "Currency Pair", "Pair", "CurrencyPair"],
+    )
+    if pair_column and pair_column != "currency_pair":
+        working_df = working_df.rename(columns={pair_column: "currency_pair"})
+
+    for column in working_df.columns:
+        if column in {"Date", "currency_pair"}:
+            continue
+        working_df[column] = _coerce_numeric_series(working_df[column])
+
+    if "currency_pair" in working_df.columns:
+        working_df["currency_pair"] = working_df["currency_pair"].astype(str).str.strip()
+
+    return working_df
+
+
+def _is_usable_numeric_column(dataframe: pd.DataFrame, column: str) -> bool:
+    return pd.api.types.is_numeric_dtype(dataframe[column]) and int(dataframe[column].notna().sum()) >= 2
+
+
 def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
-    if "Date" not in dataframe.columns:
+    cleaned_df = clean_uploaded_dataframe(dataframe)
+
+    if "Date" not in cleaned_df.columns:
         return False, "Your CSV needs a Date column."
 
     numeric_columns = [
         column
-        for column in dataframe.columns
-        if column != "Date" and pd.api.types.is_numeric_dtype(dataframe[column])
+        for column in cleaned_df.columns
+        if column != "Date" and column != "currency_pair" and _is_usable_numeric_column(cleaned_df, column)
     ]
     if numeric_columns:
         return True, ""
 
-    candidate_columns = [column for column in ["Close", "High", "Low", "Open"] if column in dataframe.columns]
+    candidate_columns = [
+        column
+        for column in ["Close", "High", "Low", "Open"]
+        if column in cleaned_df.columns and _is_usable_numeric_column(cleaned_df, column)
+    ]
     if candidate_columns:
         return True, ""
 
@@ -61,20 +122,27 @@ def validate_csv(dataframe: pd.DataFrame) -> tuple[bool, str]:
 
 
 def get_rate_columns(dataframe: pd.DataFrame) -> list[str]:
-    preferred_columns = [column for column in ["Close", "High", "Low", "Open"] if column in dataframe.columns]
+    dataframe = clean_uploaded_dataframe(dataframe)
+    preferred_columns = [
+        column
+        for column in ["Close", "High", "Low", "Open"]
+        if column in dataframe.columns and _is_usable_numeric_column(dataframe, column)
+    ]
     other_numeric_columns = [
         column
         for column in dataframe.columns
         if column not in {"Date", "currency_pair"} | set(preferred_columns)
-        and pd.api.types.is_numeric_dtype(dataframe[column])
+        and _is_usable_numeric_column(dataframe, column)
     ]
     return preferred_columns + other_numeric_columns
 
 
 def get_currency_pair_options(dataframe: pd.DataFrame) -> list[str]:
+    dataframe = clean_uploaded_dataframe(dataframe)
     if "currency_pair" not in dataframe.columns:
         return []
-    return sorted(dataframe["currency_pair"].dropna().astype(str).unique().tolist())
+    values = dataframe["currency_pair"].replace({"nan": np.nan}).dropna().astype(str)
+    return sorted(value for value in values.unique().tolist() if value)
 
 
 def choose_default_pair(dataframe: pd.DataFrame) -> str | None:
@@ -94,7 +162,7 @@ def extract_history_frame(
     rate_column: str,
     selected_pair: str | None = None,
 ) -> pd.DataFrame:
-    working_df = dataframe.copy()
+    working_df = clean_uploaded_dataframe(dataframe)
     working_df["Date"] = pd.to_datetime(working_df["Date"], errors="coerce")
     working_df = working_df.dropna(subset=["Date"])
 
@@ -108,7 +176,58 @@ def extract_history_frame(
     history_df = working_df[["Date", rate_column]].copy()
     history_df["Rate"] = pd.to_numeric(history_df[rate_column], errors="coerce")
     history_df = history_df.dropna(subset=["Rate"])
+    history_df = history_df.drop_duplicates(subset=["Date"], keep="last")
     return history_df[["Date", "Rate"]]
+
+
+def prepare_uploaded_history(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    cleaned_df = clean_uploaded_dataframe(dataframe)
+    is_valid, message = validate_csv(cleaned_df)
+    if not is_valid:
+        raise ValueError(message)
+
+    selected_pair = choose_default_pair(cleaned_df)
+    rate_column = choose_default_rate_column(cleaned_df)
+
+    dated_df = cleaned_df.copy()
+    dated_df["Date"] = pd.to_datetime(dated_df["Date"], errors="coerce")
+    valid_date_df = dated_df.dropna(subset=["Date"])
+
+    pair_filtered_df = valid_date_df
+    if selected_pair and "currency_pair" in pair_filtered_df.columns:
+        pair_filtered_df = pair_filtered_df[pair_filtered_df["currency_pair"].astype(str) == selected_pair]
+
+    if pair_filtered_df.empty:
+        raise ValueError("We could not find valid rows for the currency pair you selected.")
+
+    rate_df = pair_filtered_df[["Date", rate_column]].copy()
+    rate_df["Rate"] = pd.to_numeric(rate_df[rate_column], errors="coerce")
+    valid_rate_df = rate_df.dropna(subset=["Rate"])
+
+    if valid_rate_df.empty:
+        raise ValueError("We could not find valid rate values in the uploaded file.")
+
+    duplicate_date_rows = int(valid_rate_df.duplicated(subset=["Date"], keep="last").sum())
+    history_df = (
+        valid_rate_df.drop_duplicates(subset=["Date"], keep="last")
+        .sort_values("Date")
+        .reset_index(drop=True)[["Date", "Rate"]]
+    )
+
+    metadata = {
+        "selected_pair": selected_pair,
+        "rate_column": rate_column,
+        "source_name": selected_pair or rate_column,
+        "original_rows": int(len(cleaned_df)),
+        "valid_date_rows": int(len(valid_date_df)),
+        "pair_rows": int(len(pair_filtered_df)),
+        "valid_rate_rows": int(len(valid_rate_df)),
+        "kept_rows": int(len(history_df)),
+        "invalid_date_rows": int(len(cleaned_df) - len(valid_date_df)),
+        "invalid_rate_rows": int(len(pair_filtered_df) - len(valid_rate_df)),
+        "duplicate_date_rows": duplicate_date_rows,
+    }
+    return history_df, metadata
 
 
 def derive_parameters_from_history(rate_series: pd.Series) -> tuple[float, float, float]:
@@ -159,6 +278,43 @@ def build_weekday_market_summary(history_df: pd.DataFrame) -> pd.DataFrame:
         "Often down",
     )
     return grouped
+
+
+def build_history_analysis(history_df: pd.DataFrame) -> dict:
+    if history_df.empty:
+        return {}
+
+    rates = pd.to_numeric(history_df["Rate"], errors="coerce").dropna()
+    if rates.empty:
+        return {}
+
+    daily_changes = rates.diff().dropna()
+    first_rate = float(rates.iloc[0])
+    latest_rate = float(rates.iloc[-1])
+    change_value = latest_rate - first_rate
+    change_percent = (change_value / first_rate * 100) if first_rate else 0.0
+
+    if change_value > 0:
+        trend_label = "Overall up"
+    elif change_value < 0:
+        trend_label = "Overall down"
+    else:
+        trend_label = "Mostly flat"
+
+    return {
+        "first_rate": first_rate,
+        "latest_rate": latest_rate,
+        "lowest_rate": float(rates.min()),
+        "highest_rate": float(rates.max()),
+        "average_rate": float(rates.mean()),
+        "overall_change_value": float(change_value),
+        "overall_change_percent": float(change_percent),
+        "average_daily_change": float(daily_changes.mean()) if not daily_changes.empty else 0.0,
+        "market_swing": float(daily_changes.std(ddof=1)) if len(daily_changes) > 1 else 0.0,
+        "trend_label": trend_label,
+        "date_start": history_df["Date"].min(),
+        "date_end": history_df["Date"].max(),
+    }
 
 
 def build_reference_levels(
@@ -334,6 +490,107 @@ def convert_currency_amount(
     return local_amount / float(rate_map[to_currency])
 
 
+def _rtf_escape(text: str) -> str:
+    escaped = []
+    for char in str(text):
+        code = ord(char)
+        if char in {"\\", "{", "}"}:
+            escaped.append(f"\\{char}")
+        elif char == "\n":
+            escaped.append("\\line ")
+        elif 32 <= code <= 126:
+            escaped.append(char)
+        else:
+            escaped.append(f"\\u{code}?")
+    return "".join(escaped)
+
+
+def build_word_report(report: dict) -> bytes:
+    lines = [
+        r"{\rtf1\ansi\deff0",
+        r"{\fonttbl{\f0 Calibri;}}",
+        r"\fs32\b Rate Test Report\b0\fs22\par",
+        r"\par",
+        rf"\b Best choice:\b0 {_rtf_escape(report.get('best_strategy_label', report['best_strategy_code']))} - {_rtf_escape(report['best_strategy_name'])}\par",
+        rf"{_rtf_escape(report['best_explanation'])}\par",
+        rf"{_rtf_escape(report['best_reason_short'])}\par",
+        r"\par",
+        r"\b Quick summary\b0\par",
+        rf"{_rtf_escape(report['simulation_story'])}\par",
+        rf"{_rtf_escape(report['learning_summary'])}\par",
+        r"\par",
+        r"\b Your inputs\b0\par",
+        rf"Source: {_rtf_escape(report['source_label'])}\par",
+        rf"Start rate: {_rtf_escape(report['starting_rate'])}\par",
+        rf"Local currency: {_rtf_escape(report['local_currency'])}\par",
+        rf"Target currency: {_rtf_escape(report['target_currency'])}\par",
+        rf"Average daily change: {_rtf_escape(report['mu'])}\par",
+        rf"Market swing: {_rtf_escape(report['sigma'])}\par",
+        rf"Days: {_rtf_escape(report['days'])}\par",
+        rf"Number of test runs: {_rtf_escape(report['n_simulations'])}\par",
+        rf"Buy rate idea: {_rtf_escape(report['suggested_buy'])}\par",
+        rf"Sell rate idea: {_rtf_escape(report['suggested_sell'])}\par",
+        r"\par",
+        r"\b Money view\b0\par",
+    ]
+
+    for card in report["scenario_cards"]:
+        lines.append(rf"{_rtf_escape(card['label'])}: {_rtf_escape(card['value'])}\par")
+        lines.append(rf"{_rtf_escape(card['detail'])}\par")
+
+    lines.extend(
+        [
+            r"\par",
+            r"\b Calculator result\b0\par",
+            rf"{_rtf_escape(report['calculator_summary']['from_amount'])} becomes {_rtf_escape(report['calculator_summary']['to_amount'])}.\par",
+            rf"{_rtf_escape(report['calculator_summary']['rate_note'])}\par",
+            r"\par",
+            r"\b All options\b0\par",
+        ]
+    )
+
+    for row in report["strategy_rows"]:
+        lines.append(
+            rf"{_rtf_escape(row['strategy_code'])} - {_rtf_escape(row['name'])}: "
+            rf"average gain {_rtf_escape(row['average_return'])}, "
+            rf"risk {_rtf_escape(row['risk_std_dev'])}, "
+            rf"total gain {_rtf_escape(row['total_profit'])}, "
+            rf"balance score {_rtf_escape(row['risk_adjusted_score'])}.\par"
+        )
+
+    lines.extend(
+        [
+            r"\par",
+            r"\b Ending rate summary\b0\par",
+            rf"Lowest: {_rtf_escape(report['terminal_summary']['minimum'])}\par",
+            rf"Middle: {_rtf_escape(report['terminal_summary']['median'])}\par",
+            rf"Highest: {_rtf_escape(report['terminal_summary']['maximum'])}\par",
+            rf"Chance it ends above today: {_rtf_escape(report['terminal_summary']['above_start_probability'])}\par",
+        ]
+    )
+
+    if report["weekday_rows"]:
+        lines.extend([r"\par", r"\b Daily pattern\b0\par"])
+        for row in report["weekday_rows"]:
+            lines.append(
+                rf"{_rtf_escape(row['weekday'])}: average rate {_rtf_escape(row['average_rate'])}, "
+                rf"average change {_rtf_escape(row['average_change'])}, "
+                rf"count {_rtf_escape(row['observations'])}, "
+                rf"pattern {_rtf_escape(row['market_mood'])}.\par"
+            )
+
+    lines.extend([r"\par", r"\b Buy and sell rules\b0\par"])
+    for row in report["strategy_rules_rows"]:
+        lines.append(
+            rf"{_rtf_escape(row['strategy'])}: buy {_rtf_escape(row['when_to_buy'])} "
+            rf"sell {_rtf_escape(row['when_to_sell'])} "
+            rf"meaning {_rtf_escape(row['meaning'])}.\par"
+        )
+
+    lines.append("}")
+    return "".join(lines).encode("utf-8")
+
+
 def build_pdf_report(report: dict) -> bytes:
     buffer = BytesIO()
     document = SimpleDocTemplate(
@@ -371,6 +628,7 @@ def build_pdf_report(report: dict) -> bytes:
         Spacer(1, 12),
         Paragraph("Quick summary", heading_style),
         Paragraph(report["simulation_story"], body_style),
+        Paragraph(report["learning_summary"], body_style),
         Spacer(1, 12),
         Paragraph("Your inputs", heading_style),
     ]

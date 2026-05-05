@@ -10,20 +10,19 @@ from flask import Flask, render_template, request
 
 from app_logic import (
     DEFAULTS,
+    build_history_analysis,
     build_pdf_report,
     build_reference_levels,
     build_strategy_rules_table,
     build_weekday_market_summary,
-    choose_default_pair,
-    choose_default_rate_column,
+    build_word_report,
     convert_currency_amount,
     derive_parameters_from_history,
     explain_best_strategy,
-    extract_history_frame,
     get_best_strategy,
     parse_extra_currency_rates,
+    prepare_uploaded_history,
     run_all_strategies,
-    validate_csv,
 )
 from simulation import monte_carlo_simulation
 
@@ -109,6 +108,16 @@ def _build_chart_rows(summary_df: pd.DataFrame, metric_key: str, currency_label:
 
 def _format_percent(value: float) -> str:
     return f"{float(value) * 100:,.1f}%"
+
+
+def _format_signed_number(value: float, digits: int = 4) -> str:
+    sign = "+" if float(value) > 0 else ""
+    return f"{sign}{float(value):,.{digits}f}"
+
+
+def _format_signed_percent(value: float) -> str:
+    sign = "+" if float(value) > 0 else ""
+    return f"{sign}{float(value):,.2f}%"
 
 
 def _build_sample_path_rows(paths) -> list[dict]:
@@ -242,6 +251,22 @@ def _serialize_weekday_rows(weekday_df: pd.DataFrame, local_currency: str, targe
     return rows
 
 
+def _build_history_preview_rows(history_df: pd.DataFrame, local_currency: str, target_currency: str) -> list[dict]:
+    if history_df.empty:
+        return []
+
+    preview = history_df.tail(6).copy()
+    rows = []
+    for _, row in preview.iterrows():
+        rows.append(
+            {
+                "date": row["Date"].strftime("%Y-%m-%d"),
+                "rate": _format_rate(float(row["Rate"]), local_currency, target_currency),
+            }
+        )
+    return rows
+
+
 def _collect_form_values() -> dict:
     return {
         "input_mode": request.form.get("input_mode", DEFAULTS["input_mode"]),
@@ -308,25 +333,19 @@ def index():
             form_values["target_currency"] = target_currency
 
             history_df = pd.DataFrame()
+            history_metadata = None
             source_label = "Typed by hand"
-            selected_pair = None
-            rate_column = None
 
             if input_mode == "upload":
                 uploaded_file = request.files.get("history_file")
                 if uploaded_file is None or not uploaded_file.filename:
-                    raise ValueError("Upload a CSV file so the app can read past exchange rates.")
+                    raise ValueError("Upload your past CSV file so the app can learn from earlier exchange rates.")
 
                 uploaded_df = pd.read_csv(uploaded_file)
-                is_valid, message = validate_csv(uploaded_df)
-                if not is_valid:
-                    raise ValueError(message)
-
-                selected_pair = choose_default_pair(uploaded_df)
-                rate_column = choose_default_rate_column(uploaded_df)
-                history_df = extract_history_frame(uploaded_df, rate_column, selected_pair)
+                history_df, history_metadata = prepare_uploaded_history(uploaded_df)
                 starting_rate, mu, sigma = derive_parameters_from_history(history_df["Rate"])
-                source_label = selected_pair or rate_column
+                source_name = history_metadata["source_name"]
+                source_label = f"{source_name} ({len(history_df)} past rows)"
 
                 form_values["starting_rate"] = f"{starting_rate:.4f}"
                 form_values["mu"] = f"{mu:.4f}"
@@ -335,7 +354,25 @@ def index():
                 manual_series = _parse_manual_series(form_values["manual_series"])
                 if not manual_series.empty:
                     starting_rate, mu, sigma = derive_parameters_from_history(manual_series)
-                    source_label = "Rate list you typed"
+                    history_df = pd.DataFrame(
+                        {
+                            "Date": pd.date_range(
+                                end=pd.Timestamp.today().normalize(),
+                                periods=len(manual_series),
+                                freq="D",
+                            ),
+                            "Rate": manual_series.to_numpy(dtype=float),
+                        }
+                    )
+                    history_metadata = {
+                        "source_name": "Rate list you typed",
+                        "original_rows": int(len(manual_series)),
+                        "kept_rows": int(len(manual_series)),
+                        "invalid_date_rows": 0,
+                        "invalid_rate_rows": 0,
+                        "duplicate_date_rows": 0,
+                    }
+                    source_label = f"Rate list you typed ({len(history_df)} past rows)"
                     form_values["starting_rate"] = f"{starting_rate:.4f}"
                     form_values["mu"] = f"{mu:.4f}"
                     form_values["sigma"] = f"{sigma:.4f}"
@@ -343,6 +380,21 @@ def index():
                     starting_rate = _parse_float("starting_rate", DEFAULTS["starting_rate"])
                     mu = _parse_float("mu", DEFAULTS["mu"])
                     sigma = _parse_float("sigma", DEFAULTS["sigma"])
+
+            if starting_rate <= 0:
+                raise ValueError("Starting rate must be greater than zero.")
+            if initial_capital <= 0:
+                raise ValueError("Money you start with must be greater than zero.")
+            if days < 2:
+                raise ValueError("Days to test must be at least 2.")
+            if n_simulations < 1:
+                raise ValueError("Number of test runs must be at least 1.")
+            if sigma < 0:
+                raise ValueError("Market swing cannot be negative.")
+            if sell_threshold <= 0:
+                raise ValueError("Sell gain percent must be greater than zero.")
+            if trend_lookback > days:
+                raise ValueError("Trend check days must not be greater than days to test.")
 
             calculator_rates = parse_extra_currency_rates(
                 form_values["extra_currency_rates"],
@@ -396,6 +448,7 @@ def index():
                 sell_threshold,
             )
             weekday_df = build_weekday_market_summary(history_df) if not history_df.empty else pd.DataFrame()
+            history_analysis = build_history_analysis(history_df) if not history_df.empty else {}
             median_terminal_rate = float(np.median(terminal_values))
             starting_foreign_units = initial_capital / float(starting_rate)
             calculator_foreign_amount = calculator_amount / float(starting_rate)
@@ -429,53 +482,152 @@ def index():
                 f"Average gain was {_format_money(float(best_strategy['average_return']), local_currency)} "
                 f"with risk of {_format_money(float(best_strategy['risk_std_dev']), local_currency)}."
             )
-            pdf_report = build_pdf_report(
-                {
-                    "best_strategy_code": best_strategy["strategy_code"],
-                    "best_strategy_label": _display_strategy_code(best_strategy["strategy_code"]),
-                    "best_strategy_name": best_strategy["name"],
-                    "best_explanation": explain_best_strategy(best_strategy),
-                    "best_reason_short": best_reason_short,
-                    "simulation_story": (
-                        f"If you start with {_format_money(initial_capital, local_currency)}, you can buy about "
-                        f"{starting_foreign_units:,.2f} {target_currency} at the start rate. "
-                        f"The test then shows simple possible up and down moves over {days} days."
-                    ),
-                    "source_label": source_label,
-                    "starting_rate": _format_rate(float(starting_rate), local_currency, target_currency),
-                    "local_currency": local_currency,
-                    "target_currency": target_currency,
-                    "mu": f"{float(mu):,.4f}",
-                    "sigma": f"{float(sigma):,.4f}",
-                    "days": days,
-                    "n_simulations": n_simulations,
-                    "suggested_buy": _format_rate(suggested_buy, local_currency, target_currency),
-                    "suggested_sell": _format_rate(suggested_sell, local_currency, target_currency),
-                    "scenario_cards": scenario_cards,
-                    "calculator_summary": {
-                        "from_amount": f"{calculator_amount:,.2f} {calculator_from_currency}",
-                        "to_amount": f"{calculator_result:,.2f} {calculator_to_currency}",
-                        "rate_note": (
-                            f"Rate used: 1 {target_currency} = {float(starting_rate):,.4f} {local_currency}. "
-                            f"You can add more currencies in the box above."
-                        ),
+            if history_metadata and input_mode == "upload":
+                learning_summary = (
+                    f"The app cleaned your CSV, kept {history_metadata['kept_rows']} good rows, "
+                    f"then learned the start rate, average daily change, and market swing."
+                )
+            elif not history_df.empty:
+                learning_summary = "The app used the values you typed by hand and learned from that rate list."
+            else:
+                learning_summary = "The app used the values you typed by hand."
+
+            data_quality_cards = []
+            history_cards = []
+            cleaning_note = ""
+            history_note = ""
+            history_preview_rows = []
+
+            if history_metadata:
+                original_rows = int(history_metadata.get("original_rows", len(history_df)))
+                kept_rows = int(history_metadata.get("kept_rows", len(history_df)))
+                removed_rows = max(0, original_rows - kept_rows)
+                date_span = "Not available"
+                if history_analysis:
+                    date_span = (
+                        f"{history_analysis['date_start'].strftime('%Y-%m-%d')} to "
+                        f"{history_analysis['date_end'].strftime('%Y-%m-%d')}"
+                    )
+
+                data_quality_cards = [
+                    {"label": "Rows found", "value": f"{original_rows:,}"},
+                    {"label": "Rows used", "value": f"{kept_rows:,}"},
+                    {"label": "Rows removed", "value": f"{removed_rows:,}"},
+                    {"label": "Date span", "value": date_span},
+                ]
+                cleaning_note = (
+                    f"Source used: {source_label}. "
+                    f"Removed rows usually had a missing date, missing rate, or a repeated date."
+                    if input_mode == "upload"
+                    else "No CSV cleaning was needed because you typed the rate list by hand."
+                )
+
+            if history_analysis:
+                history_cards = [
+                    {
+                        "label": "First rate",
+                        "value": _format_rate(history_analysis["first_rate"], local_currency, target_currency),
                     },
-                    "strategy_rows": _serialize_strategy_rows(summary_df, local_currency),
-                    "terminal_summary": _build_terminal_summary(
-                        terminal_values,
-                        float(starting_rate),
-                        local_currency,
-                        target_currency,
+                    {
+                        "label": "Latest rate",
+                        "value": _format_rate(history_analysis["latest_rate"], local_currency, target_currency),
+                    },
+                    {
+                        "label": "Lowest rate",
+                        "value": _format_rate(history_analysis["lowest_rate"], local_currency, target_currency),
+                    },
+                    {
+                        "label": "Highest rate",
+                        "value": _format_rate(history_analysis["highest_rate"], local_currency, target_currency),
+                    },
+                ]
+                history_note = (
+                    f"{history_analysis['trend_label']}. "
+                    f"Average rate was {_format_rate(history_analysis['average_rate'], local_currency, target_currency)}. "
+                    f"Overall change was {_format_signed_percent(history_analysis['overall_change_percent'])} "
+                    f"({_format_signed_number(history_analysis['overall_change_value'])} in rate units). "
+                    f"Average daily change was {_format_signed_number(history_analysis['average_daily_change'])} "
+                    f"and market swing was {float(history_analysis['market_swing']):,.4f}."
+                )
+                history_preview_rows = _build_history_preview_rows(history_df, local_currency, target_currency)
+
+            model_cards = [
+                {
+                    "label": "Model type",
+                    "value": "Stochastic, dynamic, discrete-time",
+                    "detail": "This matches the class idea of a random model that changes over time.",
+                },
+                {
+                    "label": "Method",
+                    "value": "Random walk and Monte Carlo",
+                    "detail": "The app uses many random test runs to estimate possible futures.",
+                },
+                {
+                    "label": "Data use",
+                    "value": "CSV or typed history",
+                    "detail": "Past rates are used to estimate the average daily change and market swing.",
+                },
+                {
+                    "label": "Why results change",
+                    "value": "Random numbers are involved",
+                    "detail": "Each run may be a little different because this is not a deterministic model.",
+                },
+            ]
+            report_data = {
+                "best_strategy_code": best_strategy["strategy_code"],
+                "best_strategy_label": _display_strategy_code(best_strategy["strategy_code"]),
+                "best_strategy_name": best_strategy["name"],
+                "best_explanation": explain_best_strategy(best_strategy),
+                "best_reason_short": best_reason_short,
+                "simulation_story": (
+                    f"If you start with {_format_money(initial_capital, local_currency)}, you can buy about "
+                    f"{starting_foreign_units:,.2f} {target_currency} at the start rate. "
+                    f"The test then shows simple possible up and down moves over {days} days."
+                ),
+                "learning_summary": learning_summary,
+                "source_label": source_label,
+                "starting_rate": _format_rate(float(starting_rate), local_currency, target_currency),
+                "local_currency": local_currency,
+                "target_currency": target_currency,
+                "mu": f"{float(mu):,.4f}",
+                "sigma": f"{float(sigma):,.4f}",
+                "days": days,
+                "n_simulations": n_simulations,
+                "suggested_buy": _format_rate(suggested_buy, local_currency, target_currency),
+                "suggested_sell": _format_rate(suggested_sell, local_currency, target_currency),
+                "scenario_cards": scenario_cards,
+                "calculator_summary": {
+                    "from_amount": f"{calculator_amount:,.2f} {calculator_from_currency}",
+                    "to_amount": f"{calculator_result:,.2f} {calculator_to_currency}",
+                    "rate_note": (
+                        f"Rate used: 1 {target_currency} = {float(starting_rate):,.4f} {local_currency}. "
+                        f"You can add more currencies in the box above."
                     ),
-                    "terminal_histogram_rows": _build_histogram_rows(terminal_values),
-                    "weekday_rows": _serialize_weekday_rows(weekday_df, local_currency, target_currency),
-                    "strategy_rules_rows": build_strategy_rules_table(days).to_dict(orient="records"),
-                }
-            )
+                },
+                "strategy_rows": _serialize_strategy_rows(summary_df, local_currency),
+                "terminal_summary": _build_terminal_summary(
+                    terminal_values,
+                    float(starting_rate),
+                    local_currency,
+                    target_currency,
+                ),
+                "terminal_histogram_rows": _build_histogram_rows(terminal_values),
+                "weekday_rows": _serialize_weekday_rows(weekday_df, local_currency, target_currency),
+                "strategy_rules_rows": build_strategy_rules_table(days).to_dict(orient="records"),
+            }
+            pdf_report = build_pdf_report(report_data)
+            word_report = build_word_report(report_data)
 
             results = {
                 "input_mode_label": "CSV file" if input_mode == "upload" else "Typed by hand",
                 "source_label": source_label,
+                "learning_summary": learning_summary,
+                "data_quality_cards": data_quality_cards,
+                "cleaning_note": cleaning_note,
+                "history_cards": history_cards,
+                "history_note": history_note,
+                "history_preview_rows": history_preview_rows,
+                "model_cards": model_cards,
                 "local_currency": local_currency,
                 "target_currency": target_currency,
                 "starting_rate": _format_rate(float(starting_rate), local_currency, target_currency),
@@ -511,6 +663,7 @@ def index():
                 "risk_chart_rows": _build_chart_rows(summary_df, "risk_std_dev", local_currency),
                 "sample_path_rows": _build_sample_path_rows(paths),
                 "summary_download_url": _data_url(pdf_report, "application/pdf"),
+                "word_download_url": _data_url(word_report, "application/rtf"),
                 "exchange_card": {
                     "amount_local": _format_money(calculator_amount, local_currency),
                     "amount_foreign": f"{calculator_foreign_amount:,.2f} {target_currency}",

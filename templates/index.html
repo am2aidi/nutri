@@ -59,7 +59,7 @@
         font-weight: 700;
       }
 
-      .hero-box, .tip, .metric, .story, .small-card, .calc-box, .prompt-box {
+      .hero-box, .tip, .metric, .story, .small-card, .calc-box {
         padding: 14px;
         border-radius: 18px;
         background: rgba(255, 255, 255, 0.75);
@@ -76,6 +76,8 @@
       .panel, .card { padding: 22px; }
       .stack { display: grid; gap: 14px; }
       .field { margin-bottom: 12px; }
+      .mode-panel { display: none; }
+      .mode-panel.is-visible { display: block; }
       label { display: block; margin-bottom: 6px; font-weight: 700; }
       .field-help { margin-bottom: 7px; font-size: 0.94rem; color: var(--muted); }
       .impact { margin-top: 5px; font-size: 0.87rem; color: var(--teal); }
@@ -332,9 +334,9 @@
               converts money, and shows the option that looks best.
             </p>
             <div class="grid-3" style="margin-top: 16px;">
-              <div class="tip"><strong>Step 1</strong><div class="mini">Set your rate and money.</div></div>
-              <div class="tip"><strong>Step 2</strong><div class="mini">Run the test.</div></div>
-              <div class="tip"><strong>Step 3</strong><div class="mini">Read the best option and why.</div></div>
+              <div class="tip"><strong>Step 1</strong><div class="mini">Upload past rates or type your own.</div></div>
+              <div class="tip"><strong>Step 2</strong><div class="mini">Clean and check the data.</div></div>
+              <div class="tip"><strong>Step 3</strong><div class="mini">Run the simulation and read the result.</div></div>
             </div>
           </div>
           <div class="hero-box">
@@ -348,8 +350,8 @@
       <section class="layout">
         <aside class="panel">
           <div class="eyebrow">Inputs</div>
-          <h2>Run your check</h2>
-          <p class="help">Simple words and short help for each part.</p>
+          <h2>Read your past data</h2>
+          <p class="help">Upload your CSV file and the app will learn from old rates for you.</p>
 
           {% if errors %}
             {% for error in errors %}
@@ -437,53 +439,59 @@
               </div>
             </div>
 
-              <div class="field">
+            <div class="field">
                 <label for="input_mode">Input method</label>
-                <div class="field-help">Choose typed by hand if you know the values. Choose CSV if the file should fill them.</div>
+                <div class="field-help">Choose CSV file to learn from past data. Choose typed by hand if you do not have a file.</div>
                 <select id="input_mode" name="input_mode">
                   <option value="manual" {% if form.input_mode == "manual" %}selected{% endif %}>Typed by hand</option>
                   <option value="upload" {% if form.input_mode == "upload" %}selected{% endif %}>CSV file</option>
                 </select>
-              </div>
-
-            <div class="field">
-              <label for="history_file">Historical CSV</label>
-              <div class="field-help">Upload a file with a Date column and a rate column.</div>
-              <input id="history_file" name="history_file" type="file" accept=".csv">
             </div>
 
-            <div class="field">
-              <label for="manual_series">Manual rate list</label>
-              <div class="field-help">Paste rates here if you do not have a file. Example: 1170, 1174, 1178.</div>
-              <textarea id="manual_series" name="manual_series">{{ form.manual_series }}</textarea>
+            <div class="mode-panel" id="uploadFields">
+              <div class="field">
+                <label for="history_file">Past CSV data</label>
+                <div class="field-help">Upload a file with a Date column and a rate column. The app reads the old data and fills the rate values for you.</div>
+                <input id="history_file" name="history_file" type="file" accept=".csv">
+              </div>
+            </div>
+
+            <div class="mode-panel" id="manualFields">
+              <div class="field">
+                <label for="manual_series">Rate list</label>
+                <div class="field-help">Paste rates here if you do not have a file. Example: 1170, 1174, 1178.</div>
+                <textarea id="manual_series" name="manual_series">{{ form.manual_series }}</textarea>
+              </div>
+            </div>
+
+            <div class="mode-panel" id="manualValueFields">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="mu">Average daily change</label>
+                  <div class="field-help">How much the price usually changes each day.</div>
+                  <div class="impact">If this goes up, the price tends to rise more often.</div>
+                  <input id="mu" name="mu" type="number" step="0.01" value="{{ form.mu }}">
+                </div>
+                <div class="field">
+                  <label for="sigma">Market swing</label>
+                  <div class="field-help">How much the market jumps up and down.</div>
+                  <div class="impact">If this goes up, the market becomes more random.</div>
+                  <input id="sigma" name="sigma" type="number" step="0.01" min="0" value="{{ form.sigma }}">
+                </div>
+              </div>
             </div>
 
             <div class="grid-2">
-              <div class="field">
-                <label for="starting_rate">Starting rate</label>
-                <div class="field-help">The rate today. Example: 1200 means 1 USD = 1200 RWF.</div>
-                <div class="impact">If this goes up, the foreign money costs more.</div>
-                <input id="starting_rate" name="starting_rate" type="number" step="0.01" min="0.01" value="{{ form.starting_rate }}">
-              </div>
               <div class="field">
                 <label for="initial_capital">Money you start with</label>
                 <div class="field-help">How much local money you start with.</div>
                 <input id="initial_capital" name="initial_capital" type="number" step="1000" min="1000" value="{{ form.initial_capital }}">
               </div>
-            </div>
-
-            <div class="grid-2">
               <div class="field">
-                <label for="mu">Average daily change</label>
-                <div class="field-help">How much the price usually changes each day.</div>
-                <div class="impact">If this goes up, the price tends to rise more often.</div>
-                <input id="mu" name="mu" type="number" step="0.01" value="{{ form.mu }}">
-              </div>
-              <div class="field">
-                <label for="sigma">Market swing</label>
-                <div class="field-help">How much the market jumps up and down.</div>
-                <div class="impact">If this goes up, the market becomes more random.</div>
-                <input id="sigma" name="sigma" type="number" step="0.01" min="0" value="{{ form.sigma }}">
+                <label for="starting_rate">Starting rate</label>
+                <div class="field-help">The rate today. If you use a CSV file, the app fills this after reading your past data.</div>
+                <div class="impact">If this goes up, the foreign money costs more.</div>
+                <input id="starting_rate" name="starting_rate" type="number" step="0.01" min="0.01" value="{{ form.starting_rate }}">
               </div>
             </div>
 
@@ -520,20 +528,81 @@
               <input id="trend_lookback" name="trend_lookback" type="number" step="1" min="2" max="10" value="{{ form.trend_lookback }}">
             </div>
 
-            <div class="prompt-box">
-              <div class="eyebrow">Prompt for AI</div>
-              <div class="help">If you want AI to write text like this, use:</div>
-              <pre>For every input field, button, and result in the app, write a short simple explanation in easy English. Explain what the user should do and what it means in real life. Keep it under 1 to 2 lines each.</pre>
-            </div>
-
             <div class="actions">
-              <button type="submit">Run test</button>
+              <button type="submit">Clean, analyze, and run simulation</button>
             </div>
           </form>
         </aside>
 
         <section class="results">
           {% if results %}
+            {% if results.data_quality_cards %}
+              <article class="card">
+                <div class="eyebrow">Data check</div>
+                <h2>How the app cleaned your input</h2>
+                <div class="metrics">
+                  {% for card in results.data_quality_cards %}
+                    <div class="metric">
+                      <span class="label">{{ card.label }}</span>
+                      <span class="value">{{ card.value }}</span>
+                    </div>
+                  {% endfor %}
+                </div>
+                <p style="margin-top: 14px;">{{ results.cleaning_note }}</p>
+
+                {% if results.history_preview_rows %}
+                  <div class="table-wrap" style="margin-top: 14px;">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Recent clean date</th>
+                          <th>Rate used</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for row in results.history_preview_rows %}
+                          <tr>
+                            <td>{{ row.date }}</td>
+                            <td>{{ row.rate }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% endif %}
+              </article>
+            {% endif %}
+
+            {% if results.history_cards %}
+              <article class="card">
+                <div class="eyebrow">Analysis</div>
+                <h2>What the past data says</h2>
+                <div class="metrics">
+                  {% for card in results.history_cards %}
+                    <div class="metric">
+                      <span class="label">{{ card.label }}</span>
+                      <span class="value">{{ card.value }}</span>
+                    </div>
+                  {% endfor %}
+                </div>
+                <p style="margin-top: 14px;">{{ results.history_note }}</p>
+              </article>
+            {% endif %}
+
+            <article class="card">
+              <div class="eyebrow">Course match</div>
+              <h2>How this project matches what you learned</h2>
+              <div class="story-grid">
+                {% for card in results.model_cards %}
+                  <div class="story">
+                    <strong>{{ card.label }}</strong>
+                    <div class="value">{{ card.value }}</div>
+                    <div class="mini">{{ card.detail }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            </article>
+
             <article class="card highlight">
               <div class="eyebrow">Best option</div>
               <h2>{{ results.best_strategy_code }} - {{ results.best_strategy_name }}</h2>
@@ -541,6 +610,10 @@
               <div class="small-card" style="margin-top: 14px;">
                 <strong>Why this one</strong>
                 <div class="mini">{{ results.best_reason_short }}</div>
+              </div>
+              <div class="small-card" style="margin-top: 14px;">
+                <strong>How the app learned</strong>
+                <div class="mini">{{ results.learning_summary }}</div>
               </div>
               <div class="metrics">
                 <div class="metric"><span class="label">Expected gain</span><span class="value">{{ results.best_average_return }}</span></div>
@@ -556,6 +629,7 @@
               </div>
               <div class="actions">
                 <a class="download" href="{{ results.summary_download_url }}" download="forex_simulation_report.pdf">Download simple report</a>
+                <a class="download" href="{{ results.word_download_url }}" download="forex_rate_report.rtf">Download Word file</a>
               </div>
             </article>
 
@@ -587,8 +661,8 @@
             <div class="split">
               <article class="card">
                 <div class="eyebrow">Chart</div>
-                <h3>Past rates and average future line</h3>
-                <p class="help">This chart is made from your own values.</p>
+                <h3>Cleaned history and average future line</h3>
+                <p class="help">The gray line is your cleaned past data. The blue line is the average future from the simulation.</p>
                 <div class="chart" style="margin-top: 12px;">
                   <svg viewBox="0 0 420 160" role="img" aria-label="Forecast chart">
                     <line x1="16" y1="24" x2="404" y2="24"></line>
@@ -735,8 +809,8 @@
               <div class="eyebrow">Results</div>
               <h2>Your results will show here</h2>
               <p>
-                After you run the app, you will see the best option, why it was chosen,
-                a chart, an end-result view, and a report you can open.
+                After you run the app, you will see the cleaned data summary, the analysis,
+                the chart, the simulation result, a PDF report, and a Word file.
               </p>
             </article>
           {% endif %}
@@ -766,6 +840,10 @@
       const calcFromCodeLarge = document.getElementById("calcFromCodeLarge");
       const calcToCodeLarge = document.getElementById("calcToCodeLarge");
       const calcSwapButton = document.getElementById("calcSwapButton");
+      const inputModeSelect = document.getElementById("input_mode");
+      const uploadFields = document.getElementById("uploadFields");
+      const manualFields = document.getElementById("manualFields");
+      const manualValueFields = document.getElementById("manualValueFields");
 
       const moneyFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const rateFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
@@ -829,6 +907,14 @@
         toSelect.dataset.selected = toSelect.value;
       }
 
+      function syncInputMode() {
+        const mode = inputModeSelect.value;
+        const showUpload = mode === "upload";
+        uploadFields.classList.toggle("is-visible", showUpload);
+        manualFields.classList.toggle("is-visible", !showUpload);
+        manualValueFields.classList.toggle("is-visible", !showUpload);
+      }
+
       function refreshCalculator() {
         const local = cleanCode(localCurrencyInput.value, "RWF");
         const target = cleanCode(targetCurrencyInput.value, "USD");
@@ -881,6 +967,8 @@
         });
       });
 
+      inputModeSelect.addEventListener("change", syncInputMode);
+
       [amountInput, fromSelect, toSelect, initialCapitalInput].forEach((element) => {
         element.addEventListener("input", refreshCalculator);
         element.addEventListener("change", refreshCalculator);
@@ -906,6 +994,7 @@
         refreshCalculator();
       });
 
+      syncInputMode();
       syncCalculatorOptions();
       refreshCalculator();
     </script>

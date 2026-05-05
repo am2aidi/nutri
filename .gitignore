@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 app_server.log
 app_server.err
+local_server.out.log
+local_server.err.log
