@@ -318,6 +318,286 @@ def _build_most_likely_range(histogram_rows: list[dict]) -> dict:
     return max(histogram_rows, key=lambda row: row["count"])
 
 
+def _create_chart_scale(
+    values,
+    width: int,
+    height: int,
+    pad_left: int = 52,
+    pad_right: int = 16,
+    pad_top: int = 18,
+    pad_bottom: int = 36,
+) -> dict:
+    array = np.asarray(values, dtype=float)
+    min_value = float(array.min())
+    max_value = float(array.max())
+    if min_value == max_value:
+        max_value = min_value + 1.0
+
+    return {
+        "min": min_value,
+        "max": max_value,
+        "width": width,
+        "height": height,
+        "pad_left": pad_left,
+        "pad_right": pad_right,
+        "pad_top": pad_top,
+        "pad_bottom": pad_bottom,
+        "plot_width": width - pad_left - pad_right,
+        "plot_height": height - pad_top - pad_bottom,
+        "axis_left": pad_left,
+        "axis_right": width - pad_right,
+        "axis_top": pad_top,
+        "axis_bottom": height - pad_bottom,
+    }
+
+
+def _scale_y(value: float, scale: dict) -> float:
+    return scale["height"] - scale["pad_bottom"] - (
+        ((value - scale["min"]) / (scale["max"] - scale["min"])) * scale["plot_height"]
+    )
+
+
+def _build_polyline_points(values, scale: dict) -> str:
+    array = np.asarray(values, dtype=float)
+    if array.size == 0:
+        return ""
+    if array.size == 1:
+        x_value = scale["pad_left"] + (scale["plot_width"] / 2)
+        y_value = _scale_y(float(array[0]), scale)
+        return f"{x_value:.1f},{y_value:.1f}"
+
+    x_values = np.linspace(scale["pad_left"], scale["axis_right"], array.size)
+    return " ".join(
+        f"{x_value:.1f},{_scale_y(float(y_value), scale):.1f}"
+        for x_value, y_value in zip(x_values, array)
+    )
+
+
+def _build_y_ticks(scale: dict, tick_count: int = 4) -> list[dict]:
+    ticks = []
+    for tick_value in np.linspace(scale["max"], scale["min"], tick_count):
+        ticks.append(
+            {
+                "y": f"{_scale_y(float(tick_value), scale):.1f}",
+                "label": f"{float(tick_value):,.1f}",
+            }
+        )
+    return ticks
+
+
+def _build_x_ticks(scale: dict, labels: list[str]) -> list[dict]:
+    if len(labels) == 1:
+        positions = [scale["pad_left"] + (scale["plot_width"] / 2)]
+    else:
+        positions = np.linspace(scale["pad_left"], scale["axis_right"], len(labels))
+    return [
+        {"x": f"{float(position):.1f}", "label": label}
+        for position, label in zip(positions, labels)
+    ]
+
+
+def _build_area_path(values, scale: dict) -> str:
+    points = _build_polyline_points(values, scale)
+    if not points:
+        return ""
+    point_list = points.split(" ")
+    first_x = point_list[0].split(",")[0]
+    last_x = point_list[-1].split(",")[0]
+    bottom = f"{scale['axis_bottom']:.1f}"
+    return f"M {first_x},{bottom} L {' L '.join(point_list)} L {last_x},{bottom} Z"
+
+
+def _build_history_plot(values, local_currency: str, target_currency: str) -> dict:
+    array = np.asarray(values, dtype=float)
+    if array.size == 0:
+        return {}
+
+    scale = _create_chart_scale(array, width=560, height=280)
+    return {
+        "scale": scale,
+        "line_points": _build_polyline_points(array, scale),
+        "area_path": _build_area_path(array, scale),
+        "y_ticks": _build_y_ticks(scale),
+        "x_ticks": _build_x_ticks(scale, ["Oldest", "Middle", "Latest"]),
+        "last_value": _format_rate(float(array[-1]), local_currency, target_currency),
+        "low_value": _format_rate(float(array.min()), local_currency, target_currency),
+        "high_value": _format_rate(float(array.max()), local_currency, target_currency),
+    }
+
+
+def _build_simulation_paths_plot(
+    paths: np.ndarray,
+    starting_rate: float,
+    local_currency: str,
+    target_currency: str,
+    days: int,
+) -> dict:
+    array = np.asarray(paths, dtype=float)
+    if array.size == 0:
+        return {}
+
+    sample_count = min(40, array.shape[0])
+    sampled_paths = array[:sample_count]
+    average_path = array.mean(axis=0)
+    combined_values = np.concatenate([sampled_paths.reshape(-1), average_path, np.array([starting_rate])])
+    scale = _create_chart_scale(combined_values, width=560, height=280)
+
+    sample_lines = [_build_polyline_points(path, scale) for path in sampled_paths]
+    current_y = _scale_y(float(starting_rate), scale)
+    return {
+        "scale": scale,
+        "sample_lines": sample_lines,
+        "average_points": _build_polyline_points(average_path, scale),
+        "current_y": f"{current_y:.1f}",
+        "current_label": _format_rate(starting_rate, local_currency, target_currency),
+        "average_end_label": _format_rate(float(average_path[-1]), local_currency, target_currency),
+        "y_ticks": _build_y_ticks(scale),
+        "x_ticks": _build_x_ticks(scale, ["Today", f"Day {max(1, days // 2)}", f"Day {days}"]),
+    }
+
+
+def _build_distribution_plot(
+    terminal_values,
+    starting_rate: float,
+    local_currency: str,
+    target_currency: str,
+    bins: int = 18,
+) -> dict:
+    array = np.asarray(terminal_values, dtype=float)
+    if array.size == 0:
+        return {}
+
+    min_value = float(array.min())
+    max_value = float(array.max())
+    if min_value == max_value:
+        max_value = min_value + 1.0
+
+    width = 560
+    height = 280
+    pad_left = 52
+    pad_right = 16
+    pad_top = 18
+    pad_bottom = 42
+    chart_width = width - pad_left - pad_right
+    chart_height = height - pad_top - pad_bottom
+    edges = np.linspace(min_value, max_value, bins + 1)
+    counts, _ = np.histogram(array, bins=edges)
+    max_count = int(counts.max()) if counts.size else 1
+    max_count = max_count or 1
+    bar_width = chart_width / max(1, bins)
+
+    bars = []
+    for index, count in enumerate(counts):
+        count_value = int(count)
+        height_value = (count_value / max_count) * chart_height
+        x = pad_left + index * bar_width
+        y = pad_top + (chart_height - height_value)
+        bars.append(
+            {
+                "x": f"{x + 1:.1f}",
+                "y": f"{y:.1f}",
+                "width": f"{max(3.0, bar_width - 2):.1f}",
+                "height": f"{max(2.0, height_value):.1f}",
+            }
+        )
+
+    def value_to_x(value: float) -> float:
+        return pad_left + (((value - min_value) / (max_value - min_value)) * chart_width)
+
+    y_ticks = []
+    for tick_value in np.linspace(max_count, 0, 4):
+        y = pad_top + (chart_height - ((tick_value / max_count) * chart_height if max_count else 0))
+        y_ticks.append({"y": f"{y:.1f}", "label": f"{int(round(float(tick_value)))}"})
+
+    return {
+        "bars": bars,
+        "y_ticks": y_ticks,
+        "axis_left": pad_left,
+        "axis_right": width - pad_right,
+        "axis_bottom": height - pad_bottom,
+        "axis_top": pad_top,
+        "current_x": f"{value_to_x(float(starting_rate)):.1f}",
+        "median_x": f"{value_to_x(float(np.median(array))):.1f}",
+        "current_label": _format_rate(float(starting_rate), local_currency, target_currency),
+        "median_label": _format_rate(float(np.median(array)), local_currency, target_currency),
+    }
+
+
+def _build_strategy_performance_plot(summary_df: pd.DataFrame, initial_capital: float) -> dict:
+    if summary_df.empty:
+        return {}
+
+    rows = []
+    for _, row in summary_df.iterrows():
+        percent_value = (float(row["average_return"]) / float(initial_capital)) * 100 if initial_capital else 0.0
+        rows.append(
+            {
+                "code": _display_strategy_code(row["strategy_code"]),
+                "name": row["name"],
+                "value": percent_value,
+                "label": f"{percent_value:+.2f}%",
+            }
+        )
+
+    values = [row["value"] for row in rows]
+    min_value = min(values + [0.0])
+    max_value = max(values + [0.0])
+    if min_value == max_value:
+        max_value = min_value + 1.0
+        min_value = min_value - 1.0
+
+    width = 560
+    height = 280
+    pad_left = 52
+    pad_right = 16
+    pad_top = 18
+    pad_bottom = 48
+    chart_width = width - pad_left - pad_right
+    chart_height = height - pad_top - pad_bottom
+
+    def scale_y(value: float) -> float:
+        return height - pad_bottom - (((value - min_value) / (max_value - min_value)) * chart_height)
+
+    baseline_y = scale_y(0.0)
+    bar_width = min(80, chart_width / max(1, len(rows) * 1.4))
+    gap = (chart_width - (bar_width * len(rows))) / max(1, len(rows) + 1)
+
+    bars = []
+    x_cursor = pad_left + gap
+    for row in rows:
+        value_y = scale_y(row["value"])
+        top_y = min(baseline_y, value_y)
+        bar_height = abs(baseline_y - value_y)
+        bars.append(
+            {
+                "x": f"{x_cursor:.1f}",
+                "y": f"{top_y:.1f}",
+                "width": f"{bar_width:.1f}",
+                "height": f"{max(2.0, bar_height):.1f}",
+                "label_y": f"{max(12.0, top_y - 8):.1f}" if row["value"] >= 0 else f"{min(height - 8.0, top_y + max(2.0, bar_height) + 14):.1f}",
+                "center_x": f"{(x_cursor + (bar_width / 2)):.1f}",
+                "code": row["code"],
+                "label": row["label"],
+                "positive": row["value"] >= 0,
+            }
+        )
+        x_cursor += bar_width + gap
+
+    y_ticks = []
+    for tick_value in np.linspace(max_value, min_value, 5):
+        y_ticks.append({"y": f"{scale_y(float(tick_value)):.1f}", "label": f"{float(tick_value):.1f}"})
+
+    return {
+        "bars": bars,
+        "y_ticks": y_ticks,
+        "axis_left": pad_left,
+        "axis_right": width - pad_right,
+        "axis_bottom": height - pad_bottom,
+        "axis_top": pad_top,
+        "baseline_y": f"{baseline_y:.1f}",
+    }
+
+
 def _build_histogram_chart(
     histogram_rows: list[dict],
     width: int = 540,
@@ -631,25 +911,28 @@ def index():
             terminal_histogram_rows = _build_histogram_rows(terminal_values)
             histogram_chart = _build_histogram_chart(terminal_histogram_rows)
             history_chart = (
-                _build_chart_panel(
+                _build_history_plot(
                     history_df["Rate"].tail(24),
                     local_currency,
                     target_currency,
-                    "Oldest",
-                    "Middle",
-                    "Latest",
                 )
                 if not history_df.empty
                 else {}
             )
-            forecast_chart = _build_chart_panel(
-                paths.mean(axis=0),
+            simulation_paths_chart = _build_simulation_paths_plot(
+                paths,
+                starting_rate,
                 local_currency,
                 target_currency,
-                "Today",
-                f"Day {max(1, days // 2)}",
-                f"Day {days}",
+                days,
             )
+            distribution_plot = _build_distribution_plot(
+                terminal_values,
+                starting_rate,
+                local_currency,
+                target_currency,
+            )
+            strategy_plot = _build_strategy_performance_plot(summary_df, initial_capital)
             starting_foreign_units = initial_capital / float(starting_rate)
             calculator_foreign_amount = calculator_amount / float(starting_rate)
             scenario_cards = [
@@ -876,7 +1159,9 @@ def index():
                 "buy_threshold_display": _format_percent(buy_threshold),
                 "sell_threshold_display": _format_percent(sell_threshold),
                 "history_chart": history_chart,
-                "forecast_chart": forecast_chart,
+                "simulation_paths_chart": simulation_paths_chart,
+                "distribution_plot": distribution_plot,
+                "strategy_plot": strategy_plot,
                 "terminal_histogram_rows": terminal_histogram_rows,
                 "histogram_chart": histogram_chart,
                 "most_likely_range": _build_most_likely_range(terminal_histogram_rows),

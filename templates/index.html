@@ -218,6 +218,22 @@
       .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(135deg, var(--teal), var(--blue)); }
 
       .viz-stack { display: grid; gap: 18px; }
+      .plot-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .plot-shell {
+        margin-top: 12px;
+        padding: 14px;
+        border-radius: 20px;
+        background: #fff;
+        border: 1px solid rgba(24, 33, 51, 0.08);
+      }
+      .plot-shell svg {
+        width: 100%;
+        display: block;
+      }
       .chart-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
@@ -294,8 +310,62 @@
         font-weight: 700;
         color: var(--text);
       }
+      .history-area { fill: url(#historyFill); }
       .history-line { fill: none; stroke: #8090aa; stroke-width: 3; }
       .forecast-line { fill: none; stroke: #63b3ff; stroke-width: 4; }
+      .sim-path { fill: none; stroke: rgba(90, 115, 255, 0.12); stroke-width: 1.2; }
+      .avg-line { fill: none; stroke: #ef4444; stroke-width: 3; }
+      .current-line { fill: none; stroke: #16a34a; stroke-width: 2.5; stroke-dasharray: 8 6; }
+      .median-line { fill: none; stroke: #ef4444; stroke-width: 2.5; stroke-dasharray: 8 6; }
+      .plot-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .legend-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .legend-line {
+        width: 26px;
+        height: 3px;
+        border-radius: 999px;
+      }
+      .legend-line.history { background: #1e3a8a; }
+      .legend-line.average { background: #ef4444; }
+      .legend-line.current {
+        background: repeating-linear-gradient(90deg, #16a34a 0 8px, transparent 8px 14px);
+      }
+      .legend-line.median {
+        background: repeating-linear-gradient(90deg, #ef4444 0 8px, transparent 8px 14px);
+      }
+      .plot-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .plot-stat {
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(23, 102, 242, 0.05);
+        border: 1px solid rgba(23, 102, 242, 0.08);
+      }
+      .plot-stat strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .plot-axis-title {
+        margin-top: 6px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .strategy-bar-positive { fill: #2563eb; }
+      .strategy-bar-negative { fill: #dc2626; }
 
       .histogram-shell {
         padding: 16px;
@@ -443,13 +513,13 @@
       @media (max-width: 1080px) {
         .hero-grid, .layout, .split { grid-template-columns: 1fr; }
         .metrics, .story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .chart-grid, .hist-top { grid-template-columns: 1fr; }
+        .chart-grid, .hist-top, .plot-grid { grid-template-columns: 1fr; }
       }
 
       @media (max-width: 760px) {
         .page { width: min(100% - 18px, 100%); }
         .grid-2, .grid-3, .metrics, .story-grid { grid-template-columns: 1fr; }
-        .calc-quick-grid, .hist-top, .chart-grid { grid-template-columns: 1fr; }
+        .calc-quick-grid, .hist-top, .chart-grid, .plot-grid, .plot-stats { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -804,164 +874,126 @@
             </article>
 
             <div class="viz-stack">
-              <article class="card">
-                <div class="eyebrow">Chart</div>
-                <h3>Past trend and expected path</h3>
-                <p class="help">This view separates the old trend from the future estimate, so both are easier to read.</p>
-                <div class="chart-grid" style="margin-top: 12px;">
-                  <div class="chart">
-                    <div class="eyebrow">Past clean data</div>
-                    <svg viewBox="0 0 420 200" role="img" aria-label="History chart">
-                      {% if results.history_chart %}
-                        {% for tick in results.history_chart.y_ticks %}
-                          <line class="chart-grid-line" x1="52" y1="{{ tick.y }}" x2="404" y2="{{ tick.y }}"></line>
-                          <text class="chart-axis-label" x="4" y="{{ tick.y }}">{{ tick.label }}</text>
-                        {% endfor %}
-                        {% for tick in results.history_chart.x_ticks %}
-                          <text class="chart-x-label" x="{{ tick.x }}" y="194">{{ tick.label }}</text>
-                        {% endfor %}
-                        <polyline class="history-line" points="{{ results.history_chart.points }}"></polyline>
-                      {% endif %}
-                    </svg>
-                    <div class="chart-legend">
-                      <div class="legend-item"><span class="legend-swatch history"></span><span>Past clean data</span></div>
-                    </div>
-                  </div>
-
-                  <div class="chart-side">
+              <div class="plot-grid">
+                <article class="card">
+                  <div class="eyebrow">Plot 1</div>
+                  <h3>Historical Rate Trend</h3>
+                  <p class="help">This graph shows the cleaned past exchange rates as a filled line chart.</p>
+                  <div class="plot-shell">
                     {% if results.history_chart %}
-                      <div class="small-card">
-                        <strong>Latest clean rate</strong>
-                        <span class="value">{{ results.history_chart.last_value }}</span>
-                      </div>
-                      <div class="small-card">
-                        <strong>Lowest in clean data</strong>
-                        <span class="value">{{ results.history_chart.low_value }}</span>
-                      </div>
-                      <div class="small-card">
-                        <strong>Highest in clean data</strong>
-                        <span class="value">{{ results.history_chart.high_value }}</span>
-                      </div>
-                    {% else %}
-                      <div class="small-card">
-                        <strong>No history chart</strong>
-                        <span>Upload a CSV or type a rate list to see the past trend here.</span>
-                      </div>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <div class="chart-grid" style="margin-top: 16px;">
-                  <div class="chart">
-                    <div class="eyebrow">Average future path</div>
-                    <svg viewBox="0 0 420 200" role="img" aria-label="Forecast chart">
-                      {% for tick in results.forecast_chart.y_ticks %}
-                        <line class="chart-grid-line" x1="52" y1="{{ tick.y }}" x2="404" y2="{{ tick.y }}"></line>
-                        <text class="chart-axis-label" x="4" y="{{ tick.y }}">{{ tick.label }}</text>
-                      {% endfor %}
-                      {% for tick in results.forecast_chart.x_ticks %}
-                        <text class="chart-x-label" x="{{ tick.x }}" y="194">{{ tick.label }}</text>
-                      {% endfor %}
-                      <polyline class="forecast-line" points="{{ results.forecast_chart.points }}"></polyline>
-                    </svg>
-                    <div class="chart-legend">
-                      <div class="legend-item"><span class="legend-swatch forecast"></span><span>Average future path</span></div>
-                    </div>
-                  </div>
-
-                  <div class="chart-side">
-                    {% for row in results.forecast_checkpoint_rows %}
-                      <div class="checkpoint-card">
-                        <strong>{{ row.label }}</strong>
-                        <span>{{ row.value }}</span>
-                      </div>
-                    {% endfor %}
-                  </div>
-                </div>
-              </article>
-
-              <article class="card">
-                <div class="eyebrow">End results</div>
-                <h3>Chance by ending-rate range</h3>
-                <p class="help">The strongest range is highlighted first, then all other ranges are shown below with simple bars.</p>
-                <div class="histogram-shell">
-                  {% if results.most_likely_range %}
-                    <div class="range-highlight">
-                      <strong>Most likely ending range</strong>
-                      <span>{{ results.most_likely_range.band_name }}</span>
-                      <span class="value">{{ results.most_likely_range.percent }}</span>
-                      <div class="mini">{{ results.most_likely_range.label }}</div>
-                    </div>
-                  {% endif %}
-
-                  <div class="hist-top">
-                    <div class="hist-stat">
-                      <span class="label">Lowest</span>
-                      <strong>{{ results.terminal_summary.minimum_value }}</strong>
-                      <small>{{ results.terminal_summary.pair_label }}</small>
-                    </div>
-                    <div class="hist-stat">
-                      <span class="label">Middle</span>
-                      <strong>{{ results.terminal_summary.median_value }}</strong>
-                      <small>{{ results.terminal_summary.pair_label }}</small>
-                    </div>
-                    <div class="hist-stat">
-                      <span class="label">Highest</span>
-                      <strong>{{ results.terminal_summary.maximum_value }}</strong>
-                      <small>{{ results.terminal_summary.pair_label }}</small>
-                    </div>
-                    <div class="hist-stat">
-                      <span class="label">Above today</span>
-                      <strong>{{ results.terminal_summary.above_start_probability }}</strong>
-                      <small>Chance the rate ends above today</small>
-                    </div>
-                  </div>
-
-                  {% if results.histogram_chart %}
-                    <div class="histogram-graph">
-                      <svg viewBox="0 0 540 240" role="img" aria-label="Ending rate histogram">
+                      <svg viewBox="0 0 560 280" role="img" aria-label="Historical rate trend">
                         <defs>
-                          <linearGradient id="histBarGradient" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stop-color="#61b4ff"></stop>
-                            <stop offset="100%" stop-color="#1766f2"></stop>
+                          <linearGradient id="historyFill" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stop-color="rgba(30, 58, 138, 0.35)"></stop>
+                            <stop offset="100%" stop-color="rgba(30, 58, 138, 0.08)"></stop>
                           </linearGradient>
                         </defs>
-
-                        {% for tick in results.histogram_chart.y_ticks %}
-                          <line class="hist-grid-line" x1="{{ results.histogram_chart.axis_left }}" y1="{{ tick.y }}" x2="{{ results.histogram_chart.axis_right }}" y2="{{ tick.y }}"></line>
-                          <text class="hist-axis-label" x="8" y="{{ tick.y }}">{{ tick.label }}</text>
+                        {% for tick in results.history_chart.y_ticks %}
+                          <line class="chart-grid-line" x1="{{ results.history_chart.scale.axis_left }}" y1="{{ tick.y }}" x2="{{ results.history_chart.scale.axis_right }}" y2="{{ tick.y }}"></line>
+                          <text class="chart-axis-label" x="6" y="{{ tick.y }}">{{ tick.label }}</text>
                         {% endfor %}
-
-                        <line class="hist-axis-line" x1="{{ results.histogram_chart.axis_left }}" y1="{{ results.histogram_chart.axis_top }}" x2="{{ results.histogram_chart.axis_left }}" y2="{{ results.histogram_chart.axis_bottom }}"></line>
-                        <line class="hist-axis-line" x1="{{ results.histogram_chart.axis_left }}" y1="{{ results.histogram_chart.axis_bottom }}" x2="{{ results.histogram_chart.axis_right }}" y2="{{ results.histogram_chart.axis_bottom }}"></line>
-
-                        {% for bar in results.histogram_chart.bars %}
-                          <rect class="hist-bar-rect" x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="{{ bar.height }}" rx="10"></rect>
-                          <text class="hist-bar-count" x="{{ bar.center_x }}" y="{{ bar.count_y }}">{{ bar.count }}</text>
-                          <text class="hist-bar-label" x="{{ bar.center_x }}" y="214">{{ bar.band_name }}</text>
-                          <text class="hist-bar-sub" x="{{ bar.center_x }}" y="228">{{ bar.percent }}</text>
+                        {% for tick in results.history_chart.x_ticks %}
+                          <text class="chart-x-label" x="{{ tick.x }}" y="270">{{ tick.label }}</text>
                         {% endfor %}
+                        <path class="history-area" d="{{ results.history_chart.area_path }}"></path>
+                        <polyline class="history-line" points="{{ results.history_chart.line_points }}"></polyline>
                       </svg>
-                    </div>
-                  {% endif %}
-
-                  <div class="histogram-list">
-                    {% for row in results.terminal_histogram_rows %}
-                      <div class="hist-row">
-                        <div class="hist-row-top">
-                          <strong>{{ row.band_name }}</strong>
-                          <strong>{{ row.percent }}</strong>
-                        </div>
-                        <div class="hist-range">{{ row.label }}</div>
-                        <div class="bar-track">
-                          <div class="bar-fill" style="width: {{ row.width }}%;"></div>
-                        </div>
-                        <div class="hist-run-note">{{ row.count }} runs ended in this range.</div>
+                      <div class="plot-axis-title">Rate ({{ results.terminal_summary.pair_label }})</div>
+                      <div class="plot-stats">
+                        <div class="plot-stat"><strong>Latest</strong><span>{{ results.history_chart.last_value }}</span></div>
+                        <div class="plot-stat"><strong>Lowest</strong><span>{{ results.history_chart.low_value }}</span></div>
+                        <div class="plot-stat"><strong>Highest</strong><span>{{ results.history_chart.high_value }}</span></div>
                       </div>
-                    {% endfor %}
+                    {% else %}
+                      <p class="help">Upload a CSV or type a rate list to see the history plot.</p>
+                    {% endif %}
                   </div>
-                </div>
-              </article>
+                </article>
+
+                <article class="card">
+                  <div class="eyebrow">Plot 2</div>
+                  <h3>Simulation Paths</h3>
+                  <p class="help">Faint blue lines show sample paths, the red line is the average path, and the green dashed line is today&apos;s rate.</p>
+                  <div class="plot-shell">
+                    <svg viewBox="0 0 560 280" role="img" aria-label="Simulation paths chart">
+                      {% for tick in results.simulation_paths_chart.y_ticks %}
+                        <line class="chart-grid-line" x1="{{ results.simulation_paths_chart.scale.axis_left }}" y1="{{ tick.y }}" x2="{{ results.simulation_paths_chart.scale.axis_right }}" y2="{{ tick.y }}"></line>
+                        <text class="chart-axis-label" x="6" y="{{ tick.y }}">{{ tick.label }}</text>
+                      {% endfor %}
+                      {% for tick in results.simulation_paths_chart.x_ticks %}
+                        <text class="chart-x-label" x="{{ tick.x }}" y="270">{{ tick.label }}</text>
+                      {% endfor %}
+                      {% for points in results.simulation_paths_chart.sample_lines %}
+                        <polyline class="sim-path" points="{{ points }}"></polyline>
+                      {% endfor %}
+                      <line class="current-line" x1="{{ results.simulation_paths_chart.scale.axis_left }}" y1="{{ results.simulation_paths_chart.current_y }}" x2="{{ results.simulation_paths_chart.scale.axis_right }}" y2="{{ results.simulation_paths_chart.current_y }}"></line>
+                      <polyline class="avg-line" points="{{ results.simulation_paths_chart.average_points }}"></polyline>
+                    </svg>
+                    <div class="plot-legend">
+                      <div class="legend-chip"><span class="legend-line average"></span><span>Average Path</span></div>
+                      <div class="legend-chip"><span class="legend-line current"></span><span>Current: {{ results.simulation_paths_chart.current_label }}</span></div>
+                    </div>
+                    <div class="plot-stats">
+                      <div class="plot-stat"><strong>Average end</strong><span>{{ results.simulation_paths_chart.average_end_label }}</span></div>
+                      <div class="plot-stat"><strong>Current line</strong><span>{{ results.simulation_paths_chart.current_label }}</span></div>
+                      <div class="plot-stat"><strong>Model</strong><span>{{ results.model_cards[0].value }}</span></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="card">
+                  <div class="eyebrow">Plot 3</div>
+                  <h3>Distribution of Final Rates</h3>
+                  <p class="help">This histogram shows how often the final rate landed in each range. The green dashed line is today&apos;s rate and the red dashed line is the median final rate.</p>
+                  <div class="plot-shell">
+                    <svg viewBox="0 0 560 280" role="img" aria-label="Distribution of final rates">
+                      <defs>
+                        <linearGradient id="distBarGradient" x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="0%" stop-color="#9cc5eb"></stop>
+                          <stop offset="100%" stop-color="#6ea1cf"></stop>
+                        </linearGradient>
+                      </defs>
+                      {% for tick in results.distribution_plot.y_ticks %}
+                        <line class="hist-grid-line" x1="{{ results.distribution_plot.axis_left }}" y1="{{ tick.y }}" x2="{{ results.distribution_plot.axis_right }}" y2="{{ tick.y }}"></line>
+                        <text class="hist-axis-label" x="8" y="{{ tick.y }}">{{ tick.label }}</text>
+                      {% endfor %}
+                      <line class="hist-axis-line" x1="{{ results.distribution_plot.axis_left }}" y1="{{ results.distribution_plot.axis_top }}" x2="{{ results.distribution_plot.axis_left }}" y2="{{ results.distribution_plot.axis_bottom }}"></line>
+                      <line class="hist-axis-line" x1="{{ results.distribution_plot.axis_left }}" y1="{{ results.distribution_plot.axis_bottom }}" x2="{{ results.distribution_plot.axis_right }}" y2="{{ results.distribution_plot.axis_bottom }}"></line>
+                      {% for bar in results.distribution_plot.bars %}
+                        <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="{{ bar.height }}" fill="url(#distBarGradient)"></rect>
+                      {% endfor %}
+                      <line class="current-line" x1="{{ results.distribution_plot.current_x }}" y1="{{ results.distribution_plot.axis_top }}" x2="{{ results.distribution_plot.current_x }}" y2="{{ results.distribution_plot.axis_bottom }}"></line>
+                      <line class="median-line" x1="{{ results.distribution_plot.median_x }}" y1="{{ results.distribution_plot.axis_top }}" x2="{{ results.distribution_plot.median_x }}" y2="{{ results.distribution_plot.axis_bottom }}"></line>
+                    </svg>
+                    <div class="plot-legend">
+                      <div class="legend-chip"><span class="legend-line current"></span><span>Current: {{ results.distribution_plot.current_label }}</span></div>
+                      <div class="legend-chip"><span class="legend-line median"></span><span>Median: {{ results.distribution_plot.median_label }}</span></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="card">
+                  <div class="eyebrow">Plot 4</div>
+                  <h3>Strategy Performance Comparison</h3>
+                  <p class="help">This graph compares the expected return for each option as a percentage of the starting money.</p>
+                  <div class="plot-shell">
+                    <svg viewBox="0 0 560 280" role="img" aria-label="Strategy performance comparison">
+                      {% for tick in results.strategy_plot.y_ticks %}
+                        <line class="chart-grid-line" x1="{{ results.strategy_plot.axis_left }}" y1="{{ tick.y }}" x2="{{ results.strategy_plot.axis_right }}" y2="{{ tick.y }}"></line>
+                        <text class="chart-axis-label" x="6" y="{{ tick.y }}">{{ tick.label }}</text>
+                      {% endfor %}
+                      <line class="hist-axis-line" x1="{{ results.strategy_plot.axis_left }}" y1="{{ results.strategy_plot.axis_top }}" x2="{{ results.strategy_plot.axis_left }}" y2="{{ results.strategy_plot.axis_bottom }}"></line>
+                      <line class="hist-axis-line" x1="{{ results.strategy_plot.axis_left }}" y1="{{ results.strategy_plot.baseline_y }}" x2="{{ results.strategy_plot.axis_right }}" y2="{{ results.strategy_plot.baseline_y }}"></line>
+                      {% for bar in results.strategy_plot.bars %}
+                        <rect class="{% if bar.positive %}strategy-bar-positive{% else %}strategy-bar-negative{% endif %}" x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="{{ bar.height }}" rx="8"></rect>
+                        <text class="hist-bar-count" x="{{ bar.center_x }}" y="{{ bar.label_y }}">{{ bar.label }}</text>
+                        <text class="hist-bar-label" x="{{ bar.center_x }}" y="260">{{ bar.code }}</text>
+                      {% endfor %}
+                    </svg>
+                    <div class="plot-axis-title">Expected Return (%)</div>
+                  </div>
+                </article>
+              </div>
             </div>
 
             <article class="card">
