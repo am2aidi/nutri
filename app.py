@@ -32,7 +32,7 @@ app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
 
 
 FIELD_LABELS = {
-    "starting_rate": "Starting rate",
+    "starting_rate": "Today's market rate",
     "mu": "Average daily change",
     "sigma": "Market swing",
     "days": "Days to test",
@@ -51,6 +51,16 @@ def _friendly_field_name(name: str) -> str:
 
 def _parse_float(name: str, default: float) -> float:
     raw_value = request.form.get(name, str(default)).strip()
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{_friendly_field_name(name)} must be a number.") from exc
+
+
+def _parse_required_float(name: str) -> float:
+    raw_value = request.form.get(name, "").strip()
+    if not raw_value:
+        raise ValueError(f"Enter {_friendly_field_name(name).lower()}.")
     try:
         return float(raw_value)
     except ValueError as exc:
@@ -138,7 +148,7 @@ def _build_sample_path_rows(paths) -> list[dict]:
     return rows
 
 
-def _build_histogram_rows(values, bins: int = 9) -> list[dict]:
+def _build_histogram_rows(values, bins: int = 5) -> list[dict]:
     array = np.asarray(values, dtype=float)
     if array.size == 0:
         return []
@@ -152,15 +162,20 @@ def _build_histogram_rows(values, bins: int = 9) -> list[dict]:
     counts, _ = np.histogram(array, bins=edges)
     peak_count = int(counts.max()) if counts.size else 1
     peak_count = peak_count or 1
+    total_count = int(array.size) or 1
+    band_names = ["Very low", "Low", "Middle", "High", "Very high"]
 
     rows = []
     for index, count in enumerate(counts):
-        height = max(16, int((int(count) / peak_count) * 100)) if int(count) > 0 else 10
+        count_value = int(count)
         rows.append(
             {
                 "label": f"{edges[index]:,.1f} - {edges[index + 1]:,.1f}",
-                "count": int(count),
-                "height": height,
+                "count": count_value,
+                "height": max(16, int((count_value / peak_count) * 100)) if count_value > 0 else 10,
+                "width": max(8, int((count_value / total_count) * 100)) if count_value > 0 else 4,
+                "percent": f"{(count_value / total_count) * 100:.1f}%",
+                "band_name": band_names[index] if index < len(band_names) else f"Band {index + 1}",
             }
         )
     return rows
@@ -198,6 +213,34 @@ def _build_terminal_summary(terminal_values, starting_rate: float, local_currenc
         "pair_label": f"{local_currency}/{target_currency}",
         "above_start_probability": f"{float((values >= starting_rate).mean() * 100):.1f}%",
     }
+
+
+def _build_forecast_checkpoint_rows(
+    values,
+    local_currency: str,
+    target_currency: str,
+) -> list[dict]:
+    array = np.asarray(values, dtype=float)
+    if array.size == 0:
+        return []
+
+    last_index = array.size - 1
+    checkpoints = [0, last_index // 4, last_index // 2, (last_index * 3) // 4, last_index]
+    unique_points = []
+    for point in checkpoints:
+        if point not in unique_points:
+            unique_points.append(point)
+
+    rows = []
+    for point in unique_points:
+        label = "Today" if point == 0 else f"Day {point}"
+        rows.append(
+            {
+                "label": label,
+                "value": _format_rate(float(array[point]), local_currency, target_currency),
+            }
+        )
+    return rows
 
 
 def _parse_manual_series(raw_text: str) -> pd.Series:
@@ -271,7 +314,7 @@ def _collect_form_values() -> dict:
     return {
         "input_mode": request.form.get("input_mode", DEFAULTS["input_mode"]),
         "history_file_name": request.files.get("history_file").filename if request.files.get("history_file") else "",
-        "starting_rate": request.form.get("starting_rate", str(DEFAULTS["starting_rate"])),
+        "starting_rate": request.form.get("starting_rate", ""),
         "mu": request.form.get("mu", str(DEFAULTS["mu"])),
         "sigma": request.form.get("sigma", str(DEFAULTS["sigma"])),
         "days": request.form.get("days", str(DEFAULTS["days"])),
@@ -297,7 +340,7 @@ def index():
     form_values = {
         "input_mode": DEFAULTS["input_mode"],
         "history_file_name": "",
-        "starting_rate": f"{DEFAULTS['starting_rate']}",
+        "starting_rate": "",
         "mu": f"{DEFAULTS['mu']}",
         "sigma": f"{DEFAULTS['sigma']}",
         "days": f"{DEFAULTS['days']}",
@@ -320,6 +363,7 @@ def index():
 
         try:
             input_mode = form_values["input_mode"]
+            starting_rate = _parse_required_float("starting_rate")
             days = _parse_int("days", DEFAULTS["days"])
             n_simulations = _parse_int("n_simulations", DEFAULTS["n_simulations"])
             initial_capital = _parse_float("initial_capital", DEFAULTS["initial_capital"])
@@ -343,17 +387,16 @@ def index():
 
                 uploaded_df = pd.read_csv(uploaded_file)
                 history_df, history_metadata = prepare_uploaded_history(uploaded_df)
-                starting_rate, mu, sigma = derive_parameters_from_history(history_df["Rate"])
+                _, mu, sigma = derive_parameters_from_history(history_df["Rate"])
                 source_name = history_metadata["source_name"]
                 source_label = f"{source_name} ({len(history_df)} past rows)"
 
-                form_values["starting_rate"] = f"{starting_rate:.4f}"
                 form_values["mu"] = f"{mu:.4f}"
                 form_values["sigma"] = f"{sigma:.4f}"
             else:
                 manual_series = _parse_manual_series(form_values["manual_series"])
                 if not manual_series.empty:
-                    starting_rate, mu, sigma = derive_parameters_from_history(manual_series)
+                    _, mu, sigma = derive_parameters_from_history(manual_series)
                     history_df = pd.DataFrame(
                         {
                             "Date": pd.date_range(
@@ -373,11 +416,9 @@ def index():
                         "duplicate_date_rows": 0,
                     }
                     source_label = f"Rate list you typed ({len(history_df)} past rows)"
-                    form_values["starting_rate"] = f"{starting_rate:.4f}"
                     form_values["mu"] = f"{mu:.4f}"
                     form_values["sigma"] = f"{sigma:.4f}"
                 else:
-                    starting_rate = _parse_float("starting_rate", DEFAULTS["starting_rate"])
                     mu = _parse_float("mu", DEFAULTS["mu"])
                     sigma = _parse_float("sigma", DEFAULTS["sigma"])
 
@@ -485,18 +526,28 @@ def index():
             if history_metadata and input_mode == "upload":
                 learning_summary = (
                     f"The app cleaned your CSV, kept {history_metadata['kept_rows']} good rows, "
-                    f"then learned the start rate, average daily change, and market swing."
+                    f"then learned the average daily change and market swing. "
+                    f"The current market rate came from what you typed."
                 )
             elif not history_df.empty:
-                learning_summary = "The app used the values you typed by hand and learned from that rate list."
+                learning_summary = (
+                    "The app used the values you typed by hand to learn the trend and market swing. "
+                    "The current market rate came from what you typed."
+                )
             else:
-                learning_summary = "The app used the values you typed by hand."
+                learning_summary = "The app used the values you typed by hand, including the current market rate."
 
             data_quality_cards = []
             history_cards = []
             cleaning_note = ""
             history_note = ""
             history_preview_rows = []
+            entered_rate_cards = [
+                {
+                    "label": "Rate you entered today",
+                    "value": _format_rate(starting_rate, local_currency, target_currency),
+                }
+            ]
 
             if history_metadata:
                 original_rows = int(history_metadata.get("original_rows", len(history_df)))
@@ -550,6 +601,18 @@ def index():
                     f"and market swing was {float(history_analysis['market_swing']):,.4f}."
                 )
                 history_preview_rows = _build_history_preview_rows(history_df, local_currency, target_currency)
+                entered_rate_cards.append(
+                    {
+                        "label": "Last rate in your history",
+                        "value": _format_rate(history_analysis["latest_rate"], local_currency, target_currency),
+                    }
+                )
+                entered_rate_cards.append(
+                    {
+                        "label": "Difference",
+                        "value": _format_signed_number(starting_rate - history_analysis["latest_rate"]),
+                    }
+                )
 
             model_cards = [
                 {
@@ -564,8 +627,8 @@ def index():
                 },
                 {
                     "label": "Data use",
-                    "value": "CSV or typed history",
-                    "detail": "Past rates are used to estimate the average daily change and market swing.",
+                    "value": "User rate plus past history",
+                    "detail": "You enter the real current rate. Past rates are only used to estimate trend and swing.",
                 },
                 {
                     "label": "Why results change",
@@ -581,7 +644,7 @@ def index():
                 "best_reason_short": best_reason_short,
                 "simulation_story": (
                     f"If you start with {_format_money(initial_capital, local_currency)}, you can buy about "
-                    f"{starting_foreign_units:,.2f} {target_currency} at the start rate. "
+                    f"{starting_foreign_units:,.2f} {target_currency} at the market rate you entered. "
                     f"The test then shows simple possible up and down moves over {days} days."
                 ),
                 "learning_summary": learning_summary,
@@ -601,7 +664,7 @@ def index():
                     "to_amount": f"{calculator_result:,.2f} {calculator_to_currency}",
                     "rate_note": (
                         f"Rate used: 1 {target_currency} = {float(starting_rate):,.4f} {local_currency}. "
-                        f"You can add more currencies in the box above."
+                        f"This is the market rate you entered."
                     ),
                 },
                 "strategy_rows": _serialize_strategy_rows(summary_df, local_currency),
@@ -612,6 +675,11 @@ def index():
                     target_currency,
                 ),
                 "terminal_histogram_rows": _build_histogram_rows(terminal_values),
+                "forecast_checkpoint_rows": _build_forecast_checkpoint_rows(
+                    paths.mean(axis=0),
+                    local_currency,
+                    target_currency,
+                ),
                 "weekday_rows": _serialize_weekday_rows(weekday_df, local_currency, target_currency),
                 "strategy_rules_rows": build_strategy_rules_table(days).to_dict(orient="records"),
             }
@@ -627,6 +695,7 @@ def index():
                 "history_cards": history_cards,
                 "history_note": history_note,
                 "history_preview_rows": history_preview_rows,
+                "entered_rate_cards": entered_rate_cards,
                 "model_cards": model_cards,
                 "local_currency": local_currency,
                 "target_currency": target_currency,
@@ -676,15 +745,20 @@ def index():
                     "from_amount": f"{calculator_amount:,.2f} {calculator_from_currency}",
                     "to_amount": f"{calculator_result:,.2f} {calculator_to_currency}",
                     "rate_note": (
-                        f"We convert using {local_currency}. "
+                        f"We convert using the market rate you typed. "
                         f"1 {target_currency} = {float(starting_rate):,.4f} {local_currency}"
                     ),
                 },
                 "available_currencies": available_currencies,
                 "scenario_cards": scenario_cards,
+                "forecast_checkpoint_rows": _build_forecast_checkpoint_rows(
+                    paths.mean(axis=0),
+                    local_currency,
+                    target_currency,
+                ),
                 "simulation_story": (
                     f"If you start with {_format_money(initial_capital, local_currency)}, you can buy about "
-                    f"{starting_foreign_units:,.2f} {target_currency} at the start rate. "
+                    f"{starting_foreign_units:,.2f} {target_currency} at the market rate you entered. "
                     f"The test then shows simple possible up and down moves over {days} days."
                 ),
             }
