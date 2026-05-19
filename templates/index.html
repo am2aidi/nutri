@@ -806,20 +806,6 @@
               </article>
             {% endif %}
 
-            <article class="card">
-              <div class="eyebrow">Course match</div>
-              <h2>How this project matches what you learned</h2>
-              <div class="story-grid">
-                {% for card in results.model_cards %}
-                  <div class="story">
-                    <strong>{{ card.label }}</strong>
-                    <div class="value">{{ card.value }}</div>
-                    <div class="mini">{{ card.detail }}</div>
-                  </div>
-                {% endfor %}
-              </div>
-            </article>
-
             <article class="card highlight">
               <div class="eyebrow">Best option</div>
               <h2>{{ results.best_strategy_code }} - {{ results.best_strategy_name }}</h2>
